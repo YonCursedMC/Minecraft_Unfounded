@@ -3911,7 +3911,7 @@
  	private final boolean enumBoolean;
 --- /dev/null
 +++ net/minecraft/src/EntityUnfounded.java
-@@ -1,0 +1,123 @@
+@@ -1,0 +1,127 @@
 +package net.minecraft.src;
 +
 +public abstract class EntityUnfounded extends EntityCreature implements IMob {
@@ -4033,6 +4033,10 @@
 +		       this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox).isEmpty() && 
 +		       !this.worldObj.isAnyLiquid(this.boundingBox) &&
 +		       this.worldObj.doesBlockHaveSolidTopSurface(x, y - 1, z);
++	}
++
++	protected boolean canDespawn() {
++		return false;
 +	}
 +}
 --- net/minecraft/src/NetServerHandler.java

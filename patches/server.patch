@@ -1132,7 +1132,7 @@
  		this.spawnableMonsterList.add(new SpawnListEntry(EntitySkeleton.class, 10, 4, 4));
 --- /dev/null
 +++ net/minecraft/src/EntityUnfounded.java
-@@ -1,0 +1,123 @@
+@@ -1,0 +1,127 @@
 +package net.minecraft.src;
 +
 +public abstract class EntityUnfounded extends EntityCreature implements IMob {
@@ -1250,10 +1250,14 @@
 +		int x = MathHelper.floor_double(this.posX);
 +		int y = MathHelper.floor_double(this.boundingBox.minY);
 +		int z = MathHelper.floor_double(this.posZ);
-+		return this.worldObj.checkNoEntityCollision(this.boundingBox) && 
-+		       this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox).isEmpty() && 
-+		       !this.worldObj.isAnyLiquid(this.boundingBox) &&
-+		       this.worldObj.doesBlockHaveSolidTopSurface(x, y - 1, z);
++		return this.worldObj.checkNoEntityCollision(this.boundingBox) &&
++				this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox).isEmpty() &&
++				!this.worldObj.isAnyLiquid(this.boundingBox) &&
++				this.worldObj.doesBlockHaveSolidTopSurface(x, y - 1, z);
++	}
++
++	protected boolean canDespawn() {
++		return false;
 +	}
 +}
 --- net/minecraft/src/NetServerHandler.java
