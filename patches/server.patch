@@ -108,7 +108,7 @@
 +}
 --- net/minecraft/src/ChunkProviderGenerate.java
 +++ net/minecraft/src/ChunkProviderGenerate.java
-@@ -192,6 +192,80 @@
+@@ -192,6 +192,96 @@
  			this.scatteredFeatureGenerator.generate(this, this.worldObj, var1, var2, var3);
  		}
  
@@ -186,10 +186,26 @@
 +			}
 +		}
 +
++		// --- Missing Texture Chunk (0.2% chance) ---
++		boolean isMissingTextureChunk = chunkRand.nextInt(500) == 0;
++		if (isMissingTextureChunk) {
++			for (int z = 0; z < 16; z++) {
++				for (int x = 0; x < 16; x++) {
++					for (int y = 5; y < 128; y++) {
++						int idx = (z * 16 + x) * 128 + y;
++						byte currentBlock = var3[idx];
++						if (currentBlock != 0 && currentBlock != (byte)Block.bedrock.blockID) {
++							var3[idx] = (byte)Block.missingTexture.blockID;
++						}
++					}
++				}
++			}
++		}
++
  		Chunk var4 = new Chunk(this.worldObj, var3, var1, var2);
  		byte[] var5 = var4.getBiomeArray();
  
-@@ -331,6 +405,14 @@
+@@ -331,6 +421,14 @@
  		long var7 = this.rand.nextLong() / 2L * 2L + 1L;
  		long var9 = this.rand.nextLong() / 2L * 2L + 1L;
  		this.rand.setSeed((long)var2 * var7 + (long)var3 * var9 ^ this.worldObj.getSeed());
@@ -204,7 +220,7 @@
  		boolean var11 = false;
  		if(this.mapFeaturesEnabled) {
  			this.mineshaftGenerator.generateStructuresInChunk(this.worldObj, this.rand, var2, var3);
-@@ -384,7 +466,25 @@
+@@ -384,7 +482,25 @@
  			}
  		}
  
@@ -257,7 +273,7 @@
 +}
 --- net/minecraft/src/EntityList.java
 +++ net/minecraft/src/EntityList.java
-@@ -167,5 +167,19 @@
+@@ -167,5 +167,20 @@
  		addMapping(EntityIronGolem.class, "VillagerGolem", 99);
  		addMapping(EntityVillager.class, "Villager", 120, 5651507, 12422002);
  		addMapping(EntityEnderCrystal.class, "EnderCrystal", 200);
@@ -267,6 +283,7 @@
 +		addMapping(EntityBinary444.class, "Binary444", 102);
 +		addMapping(EntityRomanesco888.class, "Binary444", 103);
 +		addMapping(EntityNoise.class, "Noise", 104);
++		addMapping(EntityNull.class, "Null", 105);
 +
 +		addMapping(EntityUU.class, "UU", 130);
 +		addMapping(EntityJJ.class, "JJ", 131);
@@ -496,6 +513,27 @@
 +		return 60;
 +	}
 +}
+--- net/minecraft/src/Entity.java
++++ net/minecraft/src/Entity.java
+@@ -235,7 +235,7 @@
+ 			this.fallDistance *= 0.5F;
+ 		}
+ 
+-		if(this.posY < -64.0D) {
++		if(!this.noClip && this.posY < -64.0D) {
+ 			this.kill();
+ 		}
+ 
+@@ -992,6 +992,9 @@
+ 	}
+ 
+ 	public boolean isEntityInsideOpaqueBlock() {
++		if (this.noClip) {
++			return false;
++		}
+ 		for(int var1 = 0; var1 < 8; ++var1) {
+ 			float var2 = ((float)((var1 >> 0) % 2) - 0.5F) * this.width * 0.8F;
+ 			float var3 = ((float)((var1 >> 1) % 2) - 0.5F) * 0.1F;
 --- net/minecraft/src/SpawnerAnimals.java
 +++ net/minecraft/src/SpawnerAnimals.java
 @@ -53,7 +53,9 @@
@@ -540,11 +578,12 @@
  }
 --- net/minecraft/src/Block.java
 +++ net/minecraft/src/Block.java
-@@ -181,6 +181,7 @@
+@@ -181,6 +181,8 @@
  	public static final Block stairsNetherQuartz = (new BlockStairs(156, blockNetherQuartz, 0)).setUnlocalizedName("stairsQuartz");
  	public static final Block railActivator = (new BlockRailPowered(157)).setHardness(0.7F).setStepSound(soundMetalFootstep).setUnlocalizedName("activatorRail");
  	public static final Block dropper = (new BlockDropper(158)).setHardness(3.5F).setStepSound(soundStoneFootstep).setUnlocalizedName("dropper");
 +	public static final Block nobedrock = (new Block(159, Material.rock)).setHardness(4.0F).setResistance(6000000.0F).setStepSound(soundStoneFootstep).setUnlocalizedName("nobedrock").disableStats().setCreativeTab(CreativeTabs.tabBlock);
++	public static final Block missingTexture = (new Block(160, Material.rock)).setHardness(0.0F).setResistance(10.0F).setStepSound(soundStoneFootstep).setUnlocalizedName("missingTexture").setCreativeTab(CreativeTabs.tabBlock);
  	public final int blockID;
  	protected float blockHardness;
  	protected float blockResistance;
@@ -737,6 +776,62 @@
  		this.updateWeather();
  	}
  
+--- /dev/null
++++ net/minecraft/src/EntityNull.java
+@@ -1,0 +1,53 @@
++package net.minecraft.src;
++
++public class EntityNull extends EntityUnfounded {
++
++	public EntityNull(World var1) {
++		super(var1);
++		this.texture = "/addmob/null.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer player = this.worldObj.getClosestPlayerToEntity(this, 60.0F);
++			if(player != null) {
++				double dist = player.getDistanceToEntity(this);
++				if(dist < 1.5D) {
++					this.worldObj.playSoundAtEntity(this, "random.fizz", 1.0F, 1.0F);
++					this.setDead();
++					return;
++				}
++				
++				double dx = this.posX - player.posX;
++				double dz = this.posZ - player.posZ;
++				double yaw = Math.toRadians(player.rotationYaw);
++				double lookX = -Math.sin(yaw);
++				double lookZ = Math.cos(yaw);
++				
++				double len = Math.sqrt(dx * dx + dz * dz);
++				if (len > 0.0D) {
++					dx /= len;
++					dz /= len;
++				}
++				
++				double dot = dx * lookX + dz * lookZ;
++				if (dot > 0.70D && dist < 12.0D) {
++					if (player instanceof EntityPlayerMP) {
++						((EntityPlayerMP)player).playerNetServerHandler.sendPacketToPlayer(new Packet81Sound("/sounds/event15.wav"));
++					}
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 2323;
++	}
++}
 --- net/minecraft/src/EntityCreature.java
 +++ net/minecraft/src/EntityCreature.java
 @@ -1,7 +1,7 @@
@@ -793,6 +888,17 @@
 +		super(id);
 +	}
 +}
+--- net/minecraft/src/Chunk.java
++++ net/minecraft/src/Chunk.java
+@@ -74,7 +74,7 @@
+ 							this.storageArrays[var10] = new ExtendedBlockStorage(var10 << 4, !var1.provider.hasNoSky);
+ 						}
+ 
+-						this.storageArrays[var10].setExtBlockID(var6, var8 & 15, var7, var9);
++						this.storageArrays[var10].setExtBlockID(var6, var8 & 15, var7, var9 & 255);
+ 					}
+ 				}
+ 			}
 --- /dev/null
 +++ net/minecraft/src/Packet80Event.java
 @@ -1,0 +1,32 @@
@@ -825,7 +931,7 @@
 +	}
 +
 +	public int getPacketSize() {
-+		return this.event;
++		return 4;
 +	}
 +}
 --- net/minecraft/src/EntityPlayer.java
@@ -970,8 +1076,8 @@
 +            // コマンド実行者をプレイヤーとして取得
 +            EntityPlayerMP player = getCommandSenderAsPlayer(sender);
 +            
-+            // WorldRandomEventのインスタンスをその場で生成して対応するイベントを実行
-+            WorldRandomEvent randomEvent = new WorldRandomEvent(player.worldObj);
++            // WorldRandomEventのワールド固有インスタンスを使用してイベントを実行（これによりタイマー等のTick更新が正しく動作します）
++            WorldRandomEvent randomEvent = player.worldObj.worldRandomEvent;
 +            
 +            sender.sendChatToPlayer("Triggering random event: " + eventId);
 +            
@@ -1150,6 +1256,41 @@
 +		       this.worldObj.doesBlockHaveSolidTopSurface(x, y - 1, z);
 +	}
 +}
+--- net/minecraft/src/NetServerHandler.java
++++ net/minecraft/src/NetServerHandler.java
+@@ -224,13 +224,18 @@
+ 
+ 				this.playerEntity.setPositionAndRotation(var5, var7, var9, var11, var12);
+ 				boolean var32 = var2.getCollidingBoundingBoxes(this.playerEntity, this.playerEntity.boundingBox.copy().contract((double)var27, (double)var27, (double)var27)).isEmpty();
+-				if(var28 && (var31 || !var32) && !this.playerEntity.isPlayerSleeping()) {
++				// if (this.playerEntity.noClip || var31 || !var32) {
++				// 	System.out.println("[DEBUG-SERVER] noClip=" + this.playerEntity.noClip + ", var28=" + var28 + ", var31=" + var31 + ", var32=" + var32 + ", y=" + this.playerEntity.posY);
++				// }
++				// Skip rubber-band check when noClip is active (e.g. event11 fall-through)
++				if(!this.playerEntity.noClip && var28 && (var31 || !var32) && !this.playerEntity.isPlayerSleeping()) {
+ 					this.setPlayerLocation(this.lastPosX, this.lastPosY, this.lastPosZ, var11, var12);
+ 					return;
+ 				}
+ 
+ 				AxisAlignedBB var33 = this.playerEntity.boundingBox.copy().expand((double)var27, (double)var27, (double)var27).addCoord(0.0D, -0.55D, 0.0D);
+-				if(!this.mcServer.isFlightAllowed() && !this.playerEntity.theItemInWorldManager.isCreative() && !var2.checkBlockCollision(var33)) {
++				// Skip floating kick when noClip is active
++				if(!this.playerEntity.noClip && !this.mcServer.isFlightAllowed() && !this.playerEntity.theItemInWorldManager.isCreative() && !var2.checkBlockCollision(var33)) {
+ 					if(var29 >= -0.03125D) {
+ 						++this.ticksForFloatKick;
+ 						if(this.ticksForFloatKick > 80) {
+@@ -238,9 +243,9 @@
+ 							this.kickPlayerFromServer("Flying is not enabled on this server");
+ 							return;
+ 						}
++					} else {
++						this.ticksForFloatKick = 0;
+ 					}
+-				} else {
+-					this.ticksForFloatKick = 0;
+ 				}
+ 
+ 				this.playerEntity.onGround = var1.onGround;
 --- /dev/null
 +++ net/minecraft/src/EntityThatThing.java
 @@ -1,0 +1,30 @@
@@ -1280,7 +1421,7 @@
 +}
 --- /dev/null
 +++ net/minecraft/src/WorldRandomEvent.java
-@@ -1,0 +1,257 @@
+@@ -1,0 +1,319 @@
 +package net.minecraft.src;
 +
 +import java.util.List;
@@ -1290,6 +1431,10 @@
 +	public World worldObj;
 +	public boolean[] timerS;
 +	public int[] timer;
++	private EntityPlayerMP e11_player;
++	private double e11_posX;
++	private double e11_posY;
++	private double e11_posZ;
 +
 +	public WorldRandomEvent(World world) {
 +		this.worldObj = world;
@@ -1311,6 +1456,7 @@
 +
 +		EntityNINI entity = new EntityNINI(this.worldObj);
 +		entity.setLocationAndAngles((double)startX + 53.5D, (double)startY + 1.0D, (double)startZ + 3.5D, 0.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
@@ -1328,6 +1474,7 @@
 +
 +		EntityLengthFix entity = new EntityLengthFix(this.worldObj);
 +		entity.setLocationAndAngles((double)startX + 53.5D, (double)startY + 1.0D, (double)startZ + 3.5D, 0.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
@@ -1341,6 +1488,7 @@
 +
 +		Entity4466 entity = new Entity4466(this.worldObj);
 +		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +
 +		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(2));
@@ -1367,6 +1515,7 @@
 +
 +		EntityPublicVoid entity = new EntityPublicVoid(this.worldObj);
 +		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
@@ -1379,6 +1528,7 @@
 +
 +		EntityBinary444 entity = new EntityBinary444(this.worldObj);
 +		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
@@ -1394,6 +1544,7 @@
 +
 +		EntityRomanesco888 entity = new EntityRomanesco888(this.worldObj);
 +		entity.setLocationAndAngles((double)x + 0.5D, (double)y, (double)z + 0.5D, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
@@ -1409,34 +1560,62 @@
 +
 +		EntityNoise entity = new EntityNoise(this.worldObj);
 +		entity.setLocationAndAngles((double)x + 0.5D, (double)y, (double)z + 0.5D, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
 +		this.worldObj.spawnEntityInWorld(entity);
 +
 +		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(9));
 +	}
 +
 +	public void event10(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(10));
 +	}
 +
 +	public void event11(EntityPlayerMP playerSP) {
++		if (this.timerS[11]) return;
++		this.e11_player = playerSP;
++		this.e11_posX = playerSP.posX;
++		this.e11_posY = playerSP.posY;
++		this.e11_posZ = playerSP.posZ;
++		this.timerS[11] = true;
++		this.timer[11] = 0;
++		playerSP.noClip = true;
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(11));
 +	}
 +
 +	public void event12(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(12));
 +	}
 +
 +	public void event13(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(13));
 +	}
 +
 +	public void event14(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(14));
 +	}
 +
 +	public void event15(EntityPlayerMP playerSP) {
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double angle = yaw - Math.toRadians(70.0D);
++		double spawnX = playerSP.posX - Math.sin(angle) * 6.0D;
++		double spawnZ = playerSP.posZ + Math.cos(angle) * 6.0D;
++		double spawnY = playerSP.posY;
++		
++		int x = MathHelper.floor_double(spawnX);
++		int z = MathHelper.floor_double(spawnZ);
++		int y = this.worldObj.getHeightValue(x, z);
++		
++		EntityNull entity = new EntityNull(this.worldObj);
++		entity.setLocationAndAngles(spawnX, (double)y, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.adjustSpawnPosition(entity);
++		this.worldObj.spawnEntityInWorld(entity);
 +	}
 +
 +	public void tickEvents() {
 +		List<EntityPlayerMP> playerSPList = this.worldObj.playerEntities;
 +		if(!playerSPList.isEmpty()) {
 +			EntityPlayerMP playerSP = playerSPList.get(new Random().nextInt(playerSPList.size()));
-+			switch(new Random().nextInt(20 * 60 * 30)) {
++			switch(new Random().nextInt(20 * 60 * 45)) {
 +			case 0:
 +				this.event0(playerSP);
 +				break;
@@ -1535,6 +1714,30 @@
 +					this.timer[6] = 0;
 +				}
 +			}
++			if(this.timerS[11]) {
++				this.timer[11]++;
++				if (this.e11_player != null) {
++					this.e11_player.fallDistance = 0.0F;
++				}
++				if(this.timer[11] >= 100) {
++					this.timerS[11] = false;
++					this.timer[11] = 0;
++					if (this.e11_player != null) {
++						this.e11_player.noClip = false;
++						this.e11_player.setPositionAndUpdate(this.e11_posX, this.e11_posY, this.e11_posZ);
++						this.e11_player = null;
++					}
++				}
++			}
++		}
++	}
++
++	private void adjustSpawnPosition(Entity entity) {
++		for (int i = 0; i < 16; i++) {
++			if (this.worldObj.getCollidingBoundingBoxes(entity, entity.boundingBox).isEmpty()) {
++				break;
++			}
++			entity.setPosition(entity.posX, entity.posY + 1.0D, entity.posZ);
 +		}
 +	}
 +}

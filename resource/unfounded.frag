@@ -19,6 +19,7 @@ uniform float u_event0Active; // 0.0 or 1.0 (event0 active flag)
 uniform float u_event1Active; // 0.0 or 1.0 (event1 active flag)
 uniform float u_event9Active; // 0.0 to 1.0 (strength of event9)
 uniform float u_glitchScale;  // 0.0 = Off, 0.2 = Weak, 1.0 = Normal
+uniform float u_event13Active; // 0.0 or 1.0 (event13 active flag)
 
 // Pseudo-random hash function
 float hash(vec2 p) {
@@ -180,6 +181,9 @@ void main() {
 
     // --- Initialization ---
     screenUV = (gl_FragCoord.xy / u_resolution.xy) * u_texScale;
+    if (u_event13Active > 0.5) {
+        screenUV.x = u_texScale.x - screenUV.x;
+    }
     strength = getGlitchStrength(u_time) * u_glitchScale;
     if (u_event2Active > 0.0) {
         strength = max(strength, u_event2Active * 0.95);
