@@ -1,0 +1,4576 @@
+--- /dev/null
++++ net/minecraft/src/EntityNINI.java
+@@ -1,0 +1,31 @@
++package net.minecraft.src;
++
++public class EntityNINI extends EntityUnfoundedLong {
++	public EntityNINI(World var1) {
++		super(var1);
++		this.texture = "/addmob/NINI.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer playerMP = this.worldObj.getClosestPlayerToEntity(this, 64.0F);
++			if(playerMP != null) {
++				if(playerMP.getDistanceToEntity(this) < 36.0F) {
++					for(int i = 0; i < 4; i++) {
++						super.onUpdate();
++					}
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/GlitchWindowEffect.java
+@@ -1,0 +1,286 @@
++package net.minecraft.src;
++
++import javax.swing.*;
++import java.awt.*;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Random;
++
++public class GlitchWindowEffect {
++    
++    // Minecraftのゲーム画面上に「Help」と描画するためのグローバルフラグ
++    public static volatile boolean showHelpText = false;
++    
++    /**
++     * デスクトップ上に複数のダイアログウィンドウを配置し、
++     * ちょうど5秒間かけて「HELL」という文字のグリッド配列を形成します。
++     * 同時にMinecraft本体の画面に「Help」と表示し、ウィンドウサイズをランダムに変えながら揺らします。
++     */
++    public static void spawnHell() {
++        showHelpText = true;
++
++        final int[][] grid = {
++            {1,0,1, 0, 1,1,1, 0, 1,0,0, 0, 1,0,0},
++            {1,0,1, 0, 1,0,0, 0, 1,0,0, 0, 1,0,0},
++            {1,1,1, 0, 1,1,1, 0, 1,0,0, 0, 1,0,0},
++            {1,0,1, 0, 1,0,0, 0, 1,0,0, 0, 1,0,0},
++            {1,0,1, 0, 1,1,1, 0, 1,1,1, 0, 1,1,1}
++        };
++
++        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
++        final int winWidth = 90;
++        final int winHeight = 70;
++        final int gap = 8;
++        
++        final int rows = grid.length;
++        final int cols = grid[0].length;
++        
++        final int totalWidth = cols * (winWidth + gap) - gap;
++        final int totalHeight = rows * (winHeight + gap) - gap;
++        
++        final int startX = (screenSize.width - totalWidth) / 2;
++        final int startY = (screenSize.height - totalHeight) / 2;
++
++        final List<JDialog> activeDialogs = new ArrayList<JDialog>();
++
++        // ウィンドウ揺らしはゲームループ上で処理
++
++        // 2. モーダルウィンドウの配置スレッド
++        new Thread(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    for (int r = 0; r < rows; r++) {
++                        for (int c = 0; c < cols; c++) {
++                            if (grid[r][c] == 1) {
++                                final int finalR = r;
++                                final int finalC = c;
++                                
++                                SwingUtilities.invokeLater(new Runnable() {
++                                    @Override
++                                    public void run() {
++                                        JDialog dialog = createGlitchDialog("ERROR", startX + finalC * (winWidth + gap), startY + finalR * (winHeight + gap), winWidth, winHeight);
++                                        activeDialogs.add(dialog);
++                                    }
++                                });
++                                Thread.sleep(275);
++                            }
++                        }
++                    }
++                    
++                    Thread.sleep(5000);
++                    
++                    SwingUtilities.invokeLater(new Runnable() {
++                        @Override
++                        public void run() {
++                            showHelpText = false;
++                            cleanupDialogs(activeDialogs);
++                            System.exit(0);
++                        }
++                    });
++                } catch (InterruptedException e) {
++                    e.printStackTrace();
++                }
++            }
++        }).start();
++    }
++
++    /**
++     * 新しいロジック：うずまき状にエラーダイアログが出現したあと、
++     * 画面に対角線状にXの形にエラーダイアログが出現します。
++     * 同時にMinecraftの画面に「Help」と表示し、ウィンドウをランダムリサイズ＆シェイクさせ、最後にMinecraftごと終了します。
++     */
++    public static void spawnSpiralAndX() {
++        showHelpText = true;
++
++        final Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
++        final int winWidth = 90;
++        final int winHeight = 70;
++        final List<JDialog> activeDialogs = new ArrayList<JDialog>();
++
++        // ウィンドウ揺らしはゲームループ上で処理
++
++        // 2. ウィンドウアニメーション生成スレッド
++        new Thread(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    // --- フェーズA: うずまき生成 (約3.0秒) ---
++                    // 30個のウィンドウを画面中央かららせんを描くように順次配置
++                    int spiralCount = 30;
++                    int cx = screenSize.width / 2 - winWidth / 2;
++                    int cy = screenSize.height / 2 - winHeight / 2;
++                    double spiralFactor = 9.5; // 広がり率
++                    
++                    for (int i = 0; i < spiralCount; i++) {
++                        double theta = i * 0.45; // 回転角度
++                        double r = i * spiralFactor; // 半径
++                        final int x = (int)(cx + r * Math.cos(theta));
++                        final int y = (int)(cy + r * Math.sin(theta));
++                        
++                        SwingUtilities.invokeLater(new Runnable() {
++                            @Override
++                            public void run() {
++                                JDialog dialog = createGlitchDialog("WARNING", x, y, winWidth, winHeight);
++                                activeDialogs.add(dialog);
++                            }
++                        });
++                        Thread.sleep(100); // 100msごとにポップアップ (計3000ms)
++                    }
++
++                    // 少しの休止
++                    Thread.sleep(200);
++
++                    // --- フェーズB: X型生成 (約1.5秒) ---
++                    // 画面の四隅から中央に向かって、Xの字を描くように対角線上に配置
++                    int xCount = 10; // 片側10個 (合計20個のウィンドウをペアで生成)
++                    for (int i = 0; i < xCount; i++) {
++                        final double progress = (double)i / (xCount - 1); // 0.0 ~ 1.0
++                        
++                        // 対角線1 (左上から右下)
++                        final int x1 = (int)(progress * (screenSize.width - winWidth));
++                        final int y1 = (int)(progress * (screenSize.height - winHeight));
++                        
++                        // 対角線2 (右上から左下)
++                        final int x2 = (int)((1.0 - progress) * (screenSize.width - winWidth));
++                        final int y2 = (int)(progress * (screenSize.height - winHeight));
++                        
++                        SwingUtilities.invokeLater(new Runnable() {
++                            @Override
++                            public void run() {
++                                // 2個同時に出現させる
++                                JDialog dialog1 = createGlitchDialog("CRITICAL", x1, y1, winWidth, winHeight);
++                                JDialog dialog2 = createGlitchDialog("CRITICAL", x2, y2, winWidth, winHeight);
++                                activeDialogs.add(dialog1);
++                                activeDialogs.add(dialog2);
++                            }
++                        });
++                        Thread.sleep(150); // 150msごとに交点方向へ進む (計1500ms)
++                    }
++
++                    // --- フェーズC: 5秒維持して強制終了 ---
++                    Thread.sleep(5000);
++
++                    SwingUtilities.invokeLater(new Runnable() {
++                        @Override
++                        public void run() {
++                            showHelpText = false;
++                            cleanupDialogs(activeDialogs);
++                            System.exit(0);
++                        }
++                    });
++
++                } catch (InterruptedException e) {
++                    e.printStackTrace();
++                }
++            }
++        }).start();
++    }
++
++    /**
++     * 共通ユーティリティ: ダイアログウィンドウの作成
++     */
++    private static JDialog createGlitchDialog(String title, int x, int y, int w, int h) {
++        JDialog dialog = new JDialog();
++        dialog.setTitle(title);
++        dialog.setSize(w, h);
++        dialog.setLocation(x, y);
++        dialog.setAlwaysOnTop(true);
++        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
++        dialog.setResizable(false);
++        dialog.setFocusableWindowState(false); // Minecraftのフォーカスを奪わず、画面が固まるのを防ぐ
++        
++        JLabel label = new JLabel("HELL", SwingConstants.CENTER);
++        label.setFont(new Font("Courier New", Font.BOLD, 18));
++        label.setForeground(Color.RED);
++        dialog.add(label);
++        
++        dialog.setVisible(true);
++        return dialog;
++    }
++
++    /**
++     * 共通ユーティリティ: すべてのダイアログを破棄
++     */
++    private static void cleanupDialogs(List<JDialog> dialogs) {
++        for (JDialog dialog : dialogs) {
++            if (dialog != null) {
++                dialog.dispose();
++            }
++        }
++    }
++
++    // 元の位置を保持する変数
++    private static int origX = -1;
++    private static int origY = -1;
++    private static int origW = -1;
++    private static int origH = -1;
++    private static Random random = new Random();
++    private static long lastShakeTime = 0;
++
++    /**
++     * ゲームのメインレンダリングスレッドから毎フレーム呼び出され、
++     * 安全にウィンドウを揺らします。
++     * （フルスクリーンや最大化時は自動解除して実行し、描画のチラつきを防ぐためサイズ変更は行いません）
++     */
++    public static void updateWindowShake() {
++        if (showHelpText) {
++            long now = System.currentTimeMillis();
++            
++            // 演出開始時の初期化（一度だけ実行）
++            if (origX == -1) {
++                // フルスクリーンの解除
++                if (org.lwjgl.opengl.Display.isFullscreen()) {
++                    try {
++                        org.lwjgl.opengl.Display.setFullscreen(false);
++                    } catch (Exception e) {
++                        e.printStackTrace();
++                    }
++                }
++                
++                origX = org.lwjgl.opengl.Display.getX();
++                origY = org.lwjgl.opengl.Display.getY();
++                origW = org.lwjgl.opengl.Display.getWidth();
++                origH = org.lwjgl.opengl.Display.getHeight();
++                
++                // 大画面（最大化など）を解除してウィンドウを揺らしやすくするため、
++                // 一度強制的に標準サイズ（854x480）の浮動ウィンドウにリサイズして画面中央付近に配置する
++                try {
++                    org.lwjgl.opengl.Display.setDisplayMode(new org.lwjgl.opengl.DisplayMode(854, 480));
++                    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
++                    origX = (screenSize.width - 854) / 2;
++                    origY = (screenSize.height - 480) / 2;
++                    origW = 854;
++                    origH = 480;
++                    org.lwjgl.opengl.Display.setLocation(origX, origY);
++                } catch (Exception e) {
++                    e.printStackTrace();
++                }
++            }
++            
++            // 80msごとに位置（座標）のみをランダムに変えて揺らす（サイズ変更はチラつくため行わない）
++            if (now - lastShakeTime >= 80) {
++                lastShakeTime = now;
++                
++                int offsetLimit = 25;
++                int newX = origX + random.nextInt(offsetLimit * 2) - offsetLimit;
++                int newY = origY + random.nextInt(offsetLimit * 2) - offsetLimit;
++                org.lwjgl.opengl.Display.setLocation(newX, newY);
++            }
++        } else {
++            // 演出終了後に元の位置・サイズに復元する
++            if (origX != -1) {
++                try {
++                    org.lwjgl.opengl.Display.setDisplayMode(new org.lwjgl.opengl.DisplayMode(origW, origH));
++                    org.lwjgl.opengl.Display.setLocation(origX, origY);
++                } catch (Exception e) {
++                    e.printStackTrace();
++                }
++                origX = -1;
++                origY = -1;
++                origW = -1;
++                origH = -1;
++            }
++        }
++    }
++}
+--- /dev/null
++++ net/minecraft/src/ModelJJ.java
+@@ -1,0 +1,51 @@
++package net.minecraft.src;
++
++public class ModelJJ extends ModelBase {
++    public ModelRenderer bipedHead;
++    public ModelRenderer bipedBody;
++    public ModelRenderer bipedRightArm;
++    public ModelRenderer bipedLeftArm;
++    public ModelRenderer bipedLeftLeg;
++
++    public ModelJJ() {
++        this(0.0F);
++    }
++
++    public ModelJJ(float var1) {
++        this(var1, 0.0F);
++    }
++
++    public ModelJJ(float var1, float var2) {
++        this.bipedHead = new ModelRenderer(this, 0, 0);
++        this.bipedHead.addBox(-6.0F, -4.0F, -4.0F, 12, 8, 8, var1);
++        this.bipedHead.setRotationPoint(6.0F, -6.0F + var2, 0.0F);
++        this.bipedBody = new ModelRenderer(this, 16, 16);
++        this.bipedBody.addBox(-4.0F, -6.0F, -2.0F, 8, 12, 4, var1);
++        this.bipedBody.setRotationPoint(-12.0F, 18.0F + var2, 0.0F);
++        this.bipedRightArm = new ModelRenderer(this, 40, 16);
++        this.bipedRightArm.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedRightArm.setRotationPoint(6.0F, 18.0F + var2, 0.0F);
++        this.bipedLeftArm = new ModelRenderer(this, 40, 16);
++        this.bipedLeftArm.mirror = true;
++        this.bipedLeftArm.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedLeftArm.setRotationPoint(6.0F, 6.0F + var2, 0.0F);
++        this.bipedLeftLeg = new ModelRenderer(this, 0, 16);
++        this.bipedLeftLeg.mirror = true;
++        this.bipedLeftLeg.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedLeftLeg.setRotationPoint(-2.0F, 22.0F + var2, 0.0F);
++    }
++
++    public void render(Entity var1, float var2, float var3, float var4, float var5, float var6, float var7) {
++        this.setRotationAngles(var2, var3, var4, var5, var6, var7, var1);
++        this.bipedHead.render(var7);
++        this.bipedBody.render(var7);
++        this.bipedRightArm.render(var7);
++        this.bipedLeftArm.render(var7);
++        this.bipedLeftLeg.render(var7);
++    }
++
++    public void setRotationAngles(float var1, float var2, float var3, float var4, float var5, float var6, Entity var7) {
++        this.bipedHead.rotateAngleZ = -1.5708F;
++        this.bipedLeftLeg.rotateAngleZ = 1.5708F;
++    }
++}
+--- /dev/null
++++ net/minecraft/src/RenderShortFix.java
+@@ -1,0 +1,19 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class RenderShortFix extends RenderLiving {
++	protected ModelLongFix modelBipedMain;
++	protected float field_40296_d;
++
++	public RenderShortFix(ModelLongFix var1, float var2) {
++		this(var1, var2, 1.0F);
++		this.modelBipedMain = var1;
++	}
++
++	public RenderShortFix(ModelLongFix var1, float var2, float var3) {
++		super(var1, var2);
++		this.modelBipedMain = var1;
++		this.field_40296_d = var3;
++	}
++}
+--- net/minecraft/src/GuiMainMenu.java
++++ net/minecraft/src/GuiMainMenu.java
+@@ -373,14 +373,40 @@
+ 		var4.draw();
+ 	}
+ 
++	private void drawShaderBackground(float var3) {
++		if (ShaderHelper.getProgramId() == 0) {
++			ShaderHelper.init("/unfounded.vert", "/unfounded_ambient.frag");
++		}
++
++		float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++		float width = (float)this.mc.displayWidth;
++		float height = (float)this.mc.displayHeight;
++		float mouseX = (float)org.lwjgl.input.Mouse.getX();
++		float mouseY = (float)org.lwjgl.input.Mouse.getY();
++
++		ShaderHelper.useShader(time, width, height, mouseX, mouseY);
++
++		Tessellator var4 = Tessellator.instance;
++		var4.startDrawingQuads();
++		var4.addVertex(0.0D, (double)this.height, 0.0D);
++		var4.addVertex((double)this.width, (double)this.height, 0.0D);
++		var4.addVertex((double)this.width, 0.0D, 0.0D);
++		var4.addVertex(0.0D, 0.0D, 0.0D);
++		var4.draw();
++
++		ShaderHelper.releaseShader();
++		ShaderHelper.captureBackground(this.mc.displayWidth, this.mc.displayHeight);
++	}
++
+ 	public void drawScreen(int var1, int var2, float var3) {
+-		this.renderSkybox(var1, var2, var3);
++		this.drawShaderBackground(var3);
+ 		Tessellator var4 = Tessellator.instance;
+ 		short var5 = 274;
++
+ 		int var6 = this.width / 2 - var5 / 2;
+ 		byte var7 = 30;
+-		this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 16777215);
+-		this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
++		// this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 16777215);
++		// this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
+ 		this.mc.renderEngine.bindTexture("/title/mclogo.png");
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+ 		if((double)this.updateCounter < 1.0E-4D) {
+@@ -403,7 +429,7 @@
+ 		GL11.glScalef(var8, var8, var8);
+ 		this.drawCenteredString(this.fontRenderer, this.splashText, 0, -8, 16776960);
+ 		GL11.glPopMatrix();
+-		String var9 = "Minecraft 1.5.2";
++		String var9 = "Minecraft Unfounded";
+ 		if(this.mc.isDemo()) {
+ 			var9 = var9 + " Demo";
+ 		}
+--- net/minecraft/src/RenderManager.java
++++ net/minecraft/src/RenderManager.java
+@@ -80,6 +80,14 @@
+ 		this.entityRenderMap.put(EntityBoat.class, new RenderBoat());
+ 		this.entityRenderMap.put(EntityFishHook.class, new RenderFish());
+ 		this.entityRenderMap.put(EntityLightningBolt.class, new RenderLightningBolt());
++
++		this.entityRenderMap.put(EntityNINI.class, new RenderNINI(new ModelNINI(), 0.5F, 1.5F));
++		this.entityRenderMap.put(EntityLengthFix.class, new RenderShortFix(new ModelLongFix(), 0.5F));
++
++		this.entityRenderMap.put(EntityUU.class, new RenderUU(new ModelUU(), 0.5F));
++		this.entityRenderMap.put(EntityJJ.class, new RenderJJ(new ModelJJ(), 0.5F));
++		this.entityRenderMap.put(Entity____.class, new Render____(new Model____(), 0.5F));
++		this.entityRenderMap.put(EntityNoise.class, new RenderNoise(new ModelBiped(), 0.5F));
+ 		Iterator var1 = this.entityRenderMap.values().iterator();
+ 
+ 		while(var1.hasNext()) {
+--- /dev/null
++++ net/minecraft/src/WorldGenLongFix.java
+@@ -1,0 +1,71 @@
++package net.minecraft.src;
++
++import java.util.Random;
++
++public class WorldGenLongFix extends WorldGenerator {
++	
++	// バックアップ保存用の静的フィールド
++	public static int[][][] backupBlockIds = new int[56][10][7];
++	public static int[][][] backupMetas = new int[56][10][7];
++	public static int lastX, lastY, lastZ;
++	public static boolean hasBackup = false;
++
++	// テレポート前のプレイヤー元の位置
++	public static double origPlayerX, origPlayerY, origPlayerZ;
++
++	public static void saveBackup(World world, int startX, int startY, int startZ) {
++		lastX = startX;
++		lastY = startY;
++		lastZ = startZ;
++		for (int i = 0; i < 56; i++) {
++			for (int k = 0; k < 10; k++) {
++				for (int j = 0; j < 7; j++) {
++					backupBlockIds[i][k][j] = world.getBlockId(i + startX, k + startY, j + startZ);
++					backupMetas[i][k][j] = world.getBlockMetadata(i + startX, k + startY, j + startZ);
++				}
++			}
++		}
++		hasBackup = true;
++	}
++
++	public static void restoreBackup(World world) {
++		if (!hasBackup) return;
++		for (int i = 0; i < 56; i++) {
++			for (int k = 0; k < 10; k++) {
++				for (int j = 0; j < 7; j++) {
++					world.setBlock(i + lastX, k + lastY, j + lastZ, backupBlockIds[i][k][j], backupMetas[i][k][j], 3);
++				}
++			}
++		}
++		hasBackup = false;
++	}
++
++	public static void savePlayerPos(double x, double y, double z) {
++		origPlayerX = x;
++		origPlayerY = y;
++		origPlayerZ = z;
++	}
++
++	public boolean generate(World var1, Random var2, int var3, int var4, int var5) {
++		int lenght = 56;
++		int width = 7;
++		int height = 10;
++		for(int i = 0; i < lenght; i++) {
++			for(int j = 0; j < width; j++) {
++				for(int k = 0; k < height; k++) {
++					if(k >= 1 && j >= 1 && j <= width - 2 && i != 0 && i != lenght - 1) {
++						// 天井の中央に4ブロック間隔でグロウストーンを配置してトンネル内を照らす
++						if (k == 8 && j == 3 && i % 4 == 0) {
++							var1.setBlock(i + var3, k + var4, j + var5, Block.glowStone.blockID);
++						} else {
++							var1.setBlock(i + var3, k + var4, j + var5, 0);
++						}
++					} else {
++						var1.setBlock(i + var3, k + var4, j + var5, Block.nobedrock.blockID);
++					}
++				}
++			}
++		}
++		return true;
++	}
++}
+--- net/minecraft/src/CallableMinecraftVersion.java
++++ net/minecraft/src/CallableMinecraftVersion.java
+@@ -10,7 +10,7 @@
+ 	}
+ 
+ 	public String minecraftVersion() {
+-		return "1.5.2";
++		return "Unfounded";
+ 	}
+ 
+ 	public Object call() {
+--- net/minecraft/src/ChunkProviderGenerate.java
++++ net/minecraft/src/ChunkProviderGenerate.java
+@@ -192,6 +192,80 @@
+ 			this.scatteredFeatureGenerator.generate(this, this.worldObj, var1, var2, var3);
+ 		}
+ 
++		Random chunkRand = new Random((long)var1 * 341873128712L + (long)var2 * 132897987541L);
++		boolean isUpsideDownChunk = chunkRand.nextInt(500) == 0;
++		if (isUpsideDownChunk) {
++			for (int z = 0; z < 16; z++) {
++				for (int x = 0; x < 16; x++) {
++					int startY = 5;
++					int endY = 127;
++					while (startY < endY) {
++						int idx1 = (z * 16 + x) * 128 + startY;
++						int idx2 = (z * 16 + x) * 128 + endY;
++						byte temp = var3[idx1];
++						var3[idx1] = var3[idx2];
++						var3[idx2] = temp;
++						startY++;
++						endY--;
++					}
++				}
++			}
++		}
++
++		// --- Glitch Bug Chunk (0.2% chance) ---
++		boolean isGlitchChunk = chunkRand.nextInt(500) == 0;
++		if (isGlitchChunk) {
++			byte[] targetBlocks = new byte[]{
++				(byte)Block.tnt.blockID,
++				(byte)Block.obsidian.blockID,
++				(byte)Block.glowStone.blockID,
++				(byte)Block.glass.blockID,
++				(byte)Block.leaves.blockID,
++				(byte)Block.cobblestone.blockID,
++				(byte)Block.bookShelf.blockID,
++				(byte)Block.redstoneLampActive.blockID,
++				(byte)Block.sponge.blockID,
++				(byte)Block.netherrack.blockID,
++				(byte)Block.mycelium.blockID,
++				(byte)Block.pumpkinLantern.blockID
++			};
++			byte[] shuffleMap = new byte[256];
++			for (int i = 0; i < 256; i++) {
++				shuffleMap[i] = (byte)i;
++			}
++			// 砂と砂利は落下による崩落連鎖クラッシュ(StackOverflow)を防ぐため、砂岩と丸石に強制マッピング
++			shuffleMap[Block.sand.blockID] = (byte)Block.sandStone.blockID;
++			shuffleMap[Block.gravel.blockID] = (byte)Block.cobblestone.blockID;
++
++			int[] sourceIds = new int[]{
++				Block.stone.blockID,
++				Block.dirt.blockID,
++				Block.grass.blockID,
++				Block.waterStill.blockID,
++				Block.wood.blockID
++			};
++			for (int srcId : sourceIds) {
++				shuffleMap[srcId] = targetBlocks[chunkRand.nextInt(targetBlocks.length)];
++			}
++			for (int z = 0; z < 16; z++) {
++				for (int x = 0; x < 16; x++) {
++					for (int y = 5; y < 128; y++) {
++						int idx = (z * 16 + x) * 128 + y;
++						byte currentBlock = var3[idx];
++						if (currentBlock != 0 && currentBlock != (byte)Block.bedrock.blockID) {
++							// 1. Digital Slicing (stripe pattern air replacement)
++							if ((x + y / 3 + z / 2) % 5 == 0) {
++								var3[idx] = 0;
++							} else {
++								// 2. Block ID Shuffling
++								var3[idx] = shuffleMap[currentBlock & 0xFF];
++							}
++						}
++					}
++				}
++			}
++		}
++
+ 		Chunk var4 = new Chunk(this.worldObj, var3, var1, var2);
+ 		byte[] var5 = var4.getBiomeArray();
+ 
+@@ -331,6 +405,15 @@
+ 		long var7 = this.rand.nextLong() / 2L * 2L + 1L;
+ 		long var9 = this.rand.nextLong() / 2L * 2L + 1L;
+ 		this.rand.setSeed((long)var2 * var7 + (long)var3 * var9 ^ this.worldObj.getSeed());
++
++		Random chunkRand = new Random((long)var2 * 341873128712L + (long)var3 * 132897987541L);
++		boolean isUpsideDownChunk = chunkRand.nextInt(500) == 0;
++		if (isUpsideDownChunk) {
++			this.worldObj.isFlippingDecorations = true;
++			this.worldObj.flipChunkX = var2;
++			this.worldObj.flipChunkZ = var3;
++		}
++
+ 		boolean var11 = false;
+ 		if(this.mapFeaturesEnabled) {
+ 			this.mineshaftGenerator.generateStructuresInChunk(this.worldObj, this.rand, var2, var3);
+@@ -384,7 +467,25 @@
+ 			}
+ 		}
+ 
++		// 1% の確率でグリッチチェストを地表に生成する
++		if (this.rand.nextInt(100) == 0) {
++			int chestX = var4 + this.rand.nextInt(16);
++			int chestZ = var5 + this.rand.nextInt(16);
++			int chestY = this.worldObj.getPrecipitationHeight(chestX, chestZ);
++			
++			int blockBelow = this.worldObj.getBlockId(chestX, chestY - 1, chestZ);
++			if (blockBelow == Block.grass.blockID || blockBelow == Block.dirt.blockID || blockBelow == Block.stone.blockID || blockBelow == Block.sand.blockID) {
++				this.worldObj.setBlock(chestX, chestY, chestZ, Block.chest.blockID, 0, 2);
++				TileEntityChest tileEntityChest = (TileEntityChest)this.worldObj.getBlockTileEntity(chestX, chestY, chestZ);
++				if (tileEntityChest != null) {
++					int slot = this.rand.nextInt(tileEntityChest.getSizeInventory());
++					tileEntityChest.setInventorySlotContents(slot, new ItemStack(Item.glitchItem, 1));
++				}
++			}
++		}
++
+ 		BlockSand.fallInstantly = false;
++		this.worldObj.isFlippingDecorations = false;
+ 	}
+ 
+ 	public boolean saveChunks(boolean var1, IProgressUpdate var2) {
+--- /dev/null
++++ net/minecraft/src/ModelLongFix.java
+@@ -1,0 +1,107 @@
++package net.minecraft.src;
++
++public class ModelLongFix extends ModelBase {
++
++	public ModelRenderer bipedHead;
++	public ModelRenderer bipedBody;
++	public ModelRenderer bipedRightArm;
++	public ModelRenderer bipedLeftArm;
++	public ModelRenderer bipedRightLeg;
++	public ModelRenderer bipedLeftLeg;
++
++	public ModelLongFix() {
++		this(0.0F);
++	}
++
++	public ModelLongFix(float var1) {
++		this(var1, 0.0F);
++	}
++
++	public ModelLongFix(float var1, float var2) {
++		short textureWidth = 64;
++		short textureHeight = 64;
++		this.bipedHead = new ModelRenderer(this, 32, 0).setTextureSize(textureWidth, textureHeight);
++		this.bipedHead.addBox(-4.0F, -16.0F, -4.0F, 8, 16, 8, var1);
++		this.bipedHead.setRotationPoint(0.0F, -44.0F + var2, 0.0F);
++		this.bipedBody = new ModelRenderer(this, 16, 24).setTextureSize(textureWidth, textureHeight);
++		this.bipedBody.addBox(-4.0F, -18.0F, -2.0F, 8, 36, 4, var1);
++		this.bipedBody.setRotationPoint(0.0F, -26.0F + var2, 0.0F);
++		this.bipedRightArm = new ModelRenderer(this, 0, 36).setTextureSize(textureWidth, textureHeight);
++		this.bipedRightArm.addBox(-3.0F, -2.0F, -2.0F, 4, 24, 4, var1);
++		this.bipedRightArm.setRotationPoint(-6.0F, -42.0F + var2, 0.0F);
++		this.bipedLeftArm = new ModelRenderer(this, 0, 36).setTextureSize(textureWidth, textureHeight);
++		this.bipedLeftArm.mirror = true;
++		this.bipedLeftArm.addBox(-1.0F, -2.0F, -2.0F, 4, 24, 4, var1);
++		this.bipedLeftArm.setRotationPoint(6.0F, -42.0F + var2, 0.0F);
++		this.bipedRightLeg = new ModelRenderer(this, 0, 0).setTextureSize(textureWidth, textureHeight);
++		this.bipedRightLeg.addBox(-2.0F, 0.0F, -2.0F, 4, 32, 4, var1);
++		this.bipedRightLeg.setRotationPoint(-2.0F, -8.0F + var2, 0.0F); ;
++		this.bipedLeftLeg = new ModelRenderer(this, 0, 0).setTextureSize(textureWidth, textureHeight);
++		this.bipedLeftLeg.mirror = true;
++		this.bipedLeftLeg.addBox(-2.0F, 0.0F, -2.0F, 4, 32, 4, var1);
++		this.bipedLeftLeg.setRotationPoint(2.0F, -8.0F + var2, 0.0F);
++	}
++
++	public void render(Entity var1, float var2, float var3, float var4, float var5, float var6, float var7) {
++		this.setRotationAngles(var2, var3, var4, var5, var6, var7);
++		this.bipedHead.render(var7);
++		this.bipedBody.render(var7);
++		this.bipedRightArm.render(var7);
++		this.bipedLeftArm.render(var7);
++		this.bipedRightLeg.render(var7);
++		this.bipedLeftLeg.render(var7);
++	}
++
++	public void setRotationAngles(float var1, float var2, float var3, float var4, float var5, float var6) {
++		this.bipedHead.rotateAngleY = var4 / (180.0F / (float)Math.PI);
++		this.bipedHead.rotateAngleX = var5 / (180.0F / (float)Math.PI);
++		this.bipedRightArm.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 2.0F * var2 * 0.5F;
++		this.bipedLeftArm.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 2.0F * var2 * 0.5F;
++		this.bipedRightArm.rotateAngleZ = 0.0F;
++		this.bipedLeftArm.rotateAngleZ = 0.0F;
++		this.bipedRightLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 1.4F * var2;
++		this.bipedLeftLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 1.4F * var2;
++		this.bipedRightLeg.rotateAngleY = 0.0F;
++		this.bipedLeftLeg.rotateAngleY = 0.0F;
++		if(this.isRiding) {
++			this.bipedRightArm.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedLeftArm.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedRightLeg.rotateAngleX = (float)Math.PI * -0.4F;
++			this.bipedLeftLeg.rotateAngleX = (float)Math.PI * -0.4F;
++			this.bipedRightLeg.rotateAngleY = (float)Math.PI * 0.1F;
++			this.bipedLeftLeg.rotateAngleY = (float)Math.PI * -0.1F;
++		}
++		this.bipedRightArm.rotateAngleY = 0.0F;
++		this.bipedLeftArm.rotateAngleY = 0.0F;
++		float var7;
++		float var8;
++		if(this.onGround > -9990.0F) {
++			var7 = this.onGround;
++			this.bipedBody.rotateAngleY = MathHelper.sin(MathHelper.sqrt_float(var7) * (float)Math.PI * 2.0F) * 0.2F;
++			this.bipedRightArm.rotationPointZ = MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm.rotationPointX = -MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm.rotationPointZ = -MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm.rotationPointX = MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm.rotateAngleX += this.bipedBody.rotateAngleY;
++			var7 = 1.0F - this.onGround;
++			var7 *= var7;
++			var7 *= var7;
++			var7 = 1.0F - var7;
++			var8 = MathHelper.sin(var7 * (float)Math.PI);
++			float var9 = MathHelper.sin(this.onGround * (float)Math.PI) * -(this.bipedHead.rotateAngleX - 0.7F) * (12.0F / 16.0F);
++			this.bipedRightArm.rotateAngleX = (float)((double)this.bipedRightArm.rotateAngleX - ((double)var8 * 1.2D + (double)var9));
++			this.bipedRightArm.rotateAngleY += this.bipedBody.rotateAngleY * 2.0F;
++			this.bipedRightArm.rotateAngleZ = MathHelper.sin(this.onGround * (float)Math.PI) * -0.4F;
++		}
++		this.bipedBody.rotateAngleX = 0.0F;
++		this.bipedRightLeg.rotationPointZ = 0.0F;
++		this.bipedLeftLeg.rotationPointZ = 0.0F;
++
++		this.bipedRightArm.rotateAngleZ += MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm.rotateAngleZ -= MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm.rotateAngleX += MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedLeftArm.rotateAngleX -= MathHelper.sin(var3 * 0.067F) * 0.05F;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/EntityPublicVoid.java
+@@ -1,0 +1,22 @@
++package net.minecraft.src;
++
++public class EntityPublicVoid extends EntityUnfounded {
++
++	public EntityPublicVoid(World var1) {
++		super(var1);
++		this.texture = "/addmob/publicvoid.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 60;
++	}
++}
+--- net/minecraft/src/EntityList.java
++++ net/minecraft/src/EntityList.java
+@@ -167,5 +167,19 @@
+ 		addMapping(EntityIronGolem.class, "VillagerGolem", 99);
+ 		addMapping(EntityVillager.class, "Villager", 120, 5651507, 12422002);
+ 		addMapping(EntityEnderCrystal.class, "EnderCrystal", 200);
++
++		addMapping(Entity4466.class, "4466", 100);
++		addMapping(EntityPublicVoid.class, "PublicVoid", 101);
++		addMapping(EntityBinary444.class, "Binary444", 102);
++		addMapping(EntityRomanesco888.class, "Binary444", 103);
++		addMapping(EntityNoise.class, "Noise", 104);
++
++		addMapping(EntityUU.class, "UU", 130);
++		addMapping(EntityJJ.class, "JJ", 131);
++		addMapping(Entity____.class, "____", 132);
++		addMapping(EntityThatThing.class, "ThatThing", 133);
++
++		addMapping(EntityNINI.class, "NINI", 150, 0, 0);
++		addMapping(EntityLengthFix.class, "LengthFix", 151, 0, 0);
+ 	}
+ }
+--- /dev/null
++++ net/minecraft/src/EntityJJ.java
+@@ -1,0 +1,30 @@
++package net.minecraft.src;
++
++public class EntityJJ extends EntityUnfounded {
++
++	public EntityJJ(World var1) {
++		super(var1);
++		this.texture = "/addmob/JJ.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer player = this.worldObj.getClosestPlayerToEntity(this, 60.0F);
++			if(player != null) {
++				if(player.getDistanceToEntity(this) < 10) {
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- net/minecraft/src/EntityPlayerSP.java
++++ net/minecraft/src/EntityPlayerSP.java
+@@ -34,9 +34,69 @@
+ 
+ 	public void updateEntityActionState() {
+ 		super.updateEntityActionState();
+-		this.moveStrafing = this.movementInput.moveStrafe;
+-		this.moveForward = this.movementInput.moveForward;
+-		this.isJumping = this.movementInput.jump;
++		if (ClientServerEvent.event2Active) {
++			this.moveStrafing = 0.0F;
++			this.moveForward = 0.0F;
++			this.isJumping = false;
++		} else if (ClientServerEvent.event3Active) {
++			this.moveStrafing = 0.0F;
++			this.moveForward = 1.0F;
++			this.isJumping = false;
++		} else {
++			this.moveStrafing = this.movementInput.moveStrafe;
++			this.moveForward = this.movementInput.moveForward;
++			this.isJumping = this.movementInput.jump;
++		}
++		
++		if (ClientServerEvent.event6Active) {
++			float t = 100.0F - (float)ClientServerEvent.event6Timer;
++			float theta = t * 0.4F;     // Rotation speed
++			float r = t * 0.12F;        // Spiral radius (growing over time)
++			this.rotationYaw += r * MathHelper.cos(theta);
++			this.rotationPitch += r * MathHelper.sin(theta);
++			
++			// Clamp pitch to prevent weird upside-down camera glitches
++			if (this.rotationPitch < -90.0F) {
++				this.rotationPitch = -90.0F;
++			}
++			if (this.rotationPitch > 90.0F) {
++				this.rotationPitch = 90.0F;
++			}
++		}
++		
++		if (ClientServerEvent.event7Active) {
++			float t = 100.0F - (float)ClientServerEvent.event7Timer;
++			int T = 30;
++			int step = (int)t % T;
++			int segment = (step * 3) / T; // 0, 1, 2
++			
++			float dx = 0.0F;
++			float dy = 0.0F;
++			
++			if (segment == 0) {
++				dx = 0.5F;
++				dy = -0.866F;
++			} else if (segment == 1) {
++				dx = -1.0F;
++				dy = 0.0F;
++			} else {
++				dx = 0.5F;
++				dy = 0.866F;
++			}
++			
++			float strength = 3.2F * ((100.0F - t) / 100.0F);
++			
++			this.rotationYaw += dx * strength;
++			this.rotationPitch += dy * strength;
++			
++			if (this.rotationPitch < -90.0F) {
++				this.rotationPitch = -90.0F;
++			}
++			if (this.rotationPitch > 90.0F) {
++				this.rotationPitch = 90.0F;
++			}
++		}
++		
+ 		this.prevRenderArmYaw = this.renderArmYaw;
+ 		this.prevRenderArmPitch = this.renderArmPitch;
+ 		this.renderArmPitch = (float)((double)this.renderArmPitch + (double)(this.rotationPitch - this.renderArmPitch) * 0.5D);
+--- net/minecraft/src/ServerCommandManager.java
++++ net/minecraft/src/ServerCommandManager.java
+@@ -6,6 +6,7 @@
+ public class ServerCommandManager extends CommandHandler implements IAdminCommand {
+ 	public ServerCommandManager() {
+ 		this.registerCommand(new CommandTime());
++		this.registerCommand(new CommandRandomEventDebug());
+ 		this.registerCommand(new CommandGameMode());
+ 		this.registerCommand(new CommandDifficulty());
+ 		this.registerCommand(new CommandDefaultGameMode());
+--- /dev/null
++++ net/minecraft/src/EntityUnfoundedLong.java
+@@ -1,0 +1,110 @@
++package net.minecraft.src;
++
++public abstract class EntityUnfoundedLong extends EntityUnfounded {
++
++	public EntityUnfoundedLong(World var1) {
++		super(var1);
++	}
++
++	protected void updateEntityActionState() {
++		this.worldObj.theProfiler.startSection("ai");
++		if(this.fleeingTick > 0) {
++			--this.fleeingTick;
++		}
++
++		this.hasAttacked = this.isMovementCeased();
++		float var1 = 64.0F;
++		if(this.entityToAttack == null) {
++			this.entityToAttack = this.findPlayerToAttack();
++			if(this.entityToAttack != null) {
++				this.pathToEntity = this.worldObj.getPathEntityToEntity(this, this.entityToAttack, var1, true, false, false, true);
++			}
++		} else if(this.entityToAttack.isEntityAlive()) {
++			float var2 = this.entityToAttack.getDistanceToEntity(this);
++			if(this.canEntityBeSeen(this.entityToAttack)) {
++				this.attackEntity(this.entityToAttack, var2);
++			}
++		} else {
++			this.entityToAttack = null;
++		}
++
++		this.worldObj.theProfiler.endSection();
++		if(this.hasAttacked || this.entityToAttack == null || this.pathToEntity != null && this.rand.nextInt(20) != 0) {
++			if(!this.hasAttacked && (this.pathToEntity == null && this.rand.nextInt(180) == 0 || this.rand.nextInt(120) == 0 || this.fleeingTick > 0) && this.entityAge < 100) {
++				this.updateWanderPath();
++			}
++		} else {
++			this.pathToEntity = this.worldObj.getPathEntityToEntity(this, this.entityToAttack, var1, true, false, false, true);
++		}
++
++		int var21 = MathHelper.floor_double(this.boundingBox.minY + 0.5D);
++		boolean var3 = this.isInWater();
++		boolean var4 = this.handleLavaMovement();
++		this.rotationPitch = 0.0F;
++		if(this.pathToEntity != null && this.rand.nextInt(100) != 0) {
++			this.worldObj.theProfiler.startSection("followpath");
++			Vec3 var5 = this.pathToEntity.getPosition(this);
++			double var6 = (double)(this.width * 2.0F);
++
++			while(var5 != null && var5.squareDistanceTo(this.posX, var5.yCoord, this.posZ) < var6 * var6) {
++				this.pathToEntity.incrementPathIndex();
++				if(this.pathToEntity.isFinished()) {
++					var5 = null;
++					this.pathToEntity = null;
++				} else {
++					var5 = this.pathToEntity.getPosition(this);
++				}
++			}
++
++			this.isJumping = false;
++			if(var5 != null) {
++				double var8 = var5.xCoord - this.posX;
++				double var10 = var5.zCoord - this.posZ;
++				double var12 = var5.yCoord - (double)var21;
++				float var14 = (float)(Math.atan2(var10, var8) * 180.0D / (double)((float)Math.PI)) - 90.0F;
++				float var15 = MathHelper.wrapAngleTo180_float(var14 - this.rotationYaw);
++				this.moveForward = this.moveSpeed;
++				if(var15 > 30.0F) {
++					var15 = 30.0F;
++				}
++
++				if(var15 < -30.0F) {
++					var15 = -30.0F;
++				}
++
++				this.rotationYaw += var15;
++				if(this.hasAttacked && this.entityToAttack != null) {
++					double var16 = this.entityToAttack.posX - this.posX;
++					double var18 = this.entityToAttack.posZ - this.posZ;
++					float var20 = this.rotationYaw;
++					this.rotationYaw = (float)(Math.atan2(var18, var16) * 180.0D / (double)((float)Math.PI)) - 90.0F;
++					var15 = (var20 - this.rotationYaw + 90.0F) * (float)Math.PI / 180.0F;
++					this.moveStrafing = -MathHelper.sin(var15) * this.moveForward * 1.0F;
++					this.moveForward = MathHelper.cos(var15) * this.moveForward * 1.0F;
++				}
++
++				if(var12 > 0.0D) {
++					this.isJumping = true;
++				}
++			}
++
++			if(this.entityToAttack != null) {
++				this.faceEntity(this.entityToAttack, 30.0F, 30.0F);
++			}
++
++			if(this.isCollidedHorizontally && !this.hasPath()) {
++				this.isJumping = true;
++			}
++
++			if(this.rand.nextFloat() < 0.8F && (var3 || var4)) {
++				this.isJumping = true;
++			}
++
++			this.worldObj.theProfiler.endSection();
++		} else {
++			super.updateEntityActionState();
++			this.pathToEntity = null;
++		}
++	}
++
++}
+--- /dev/null
++++ net/minecraft/src/EntityRomanesco888.java
+@@ -1,0 +1,60 @@
++package net.minecraft.src;
++
++public class EntityRomanesco888 extends EntityUnfounded {
++	private int placeTimer = 10;
++	private int placedCount = 0;
++	private boolean initialized = false;
++	private int startY = 0;
++
++	public EntityRomanesco888(World var1) {
++		super(var1);
++		this.texture = "/addmob/romanesco888.png";
++		this.moveSpeed = 0.0F; // Do not walk around
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		
++		// Set block and ascend on the server side
++		if (!this.worldObj.isRemote) {
++			if (!initialized) {
++				startY = MathHelper.floor_double(this.posY);
++				initialized = true;
++			}
++			
++			// Lock motions to prevent physics from messing up the vertical tower
++			this.motionX = 0.0D;
++			this.motionY = 0.0D;
++			this.motionZ = 0.0D;
++			
++			placeTimer--;
++			if (placeTimer <= 0) {
++				int x = MathHelper.floor_double(this.posX);
++				int y = MathHelper.floor_double(this.posY);
++				int z = MathHelper.floor_double(this.posZ);
++				
++				// Place sponge block at feet
++				this.worldObj.setBlock(x, y, z, Block.sponge.blockID);
++				
++				// Ascend by 1 block
++				this.setPositionAndUpdate(this.posX, this.posY + 1.0D, this.posZ);
++				
++				placedCount++;
++				placeTimer = 10; // 0.5s interval (10 ticks)
++				
++				// Delete entity when target height is reached
++				if (placedCount >= 15) {
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 60;
++	}
++}
+--- net/minecraft/src/NetClientHandler.java
++++ net/minecraft/src/NetClientHandler.java
+@@ -1118,6 +1118,14 @@
+ 
+ 	}
+ 
++	public void handleEvent(Packet80Event var1) {
++		ClientServerEvent.ClientEvent(this.mc.thePlayer, var1.event);
++	}
++
++	public void handleSound(Packet81Sound var1) {
++		new Thread(()->WavPlaySound.playsound(var1.path)).start();
++	}
++
+ 	public INetworkManager getNetManager() {
+ 		return this.netManager;
+ 	}
+--- net/minecraft/src/SpawnerAnimals.java
++++ net/minecraft/src/SpawnerAnimals.java
+@@ -53,7 +53,9 @@
+ 			label131:
+ 			for(int var34 = 0; var34 < var7; ++var34) {
+ 				EnumCreatureType var35 = var33[var34];
+-				if((!var35.getPeacefulCreature() || var2) && (var35.getPeacefulCreature() || var1) && (!var35.getAnimal() || var3) && var0.countEntities(var35.getCreatureClass()) <= var35.getMaxNumberOfCreature() * eligibleChunksForSpawning.size() / 256) {
++				boolean isUnderCap = var0.countEntities(var35.getCreatureClass()) <= var35.getMaxNumberOfCreature() * eligibleChunksForSpawning.size() / 256;
++				boolean shouldSpawnCreature = isUnderCap || (var0.rand.nextInt(40) == 0);
++				if((!var35.getPeacefulCreature() || var2) && (var35.getPeacefulCreature() || var1) && (!var35.getAnimal() || var3) && (var35 != EnumCreatureType.creature ? isUnderCap : shouldSpawnCreature)) {
+ 					Iterator var36 = eligibleChunksForSpawning.keySet().iterator();
+ 
+ 					label128:
+@@ -105,6 +107,13 @@
+ 											if(var22 == null) {
+ 												var22 = var0.spawnRandomCreature(var35, var18, var19, var20);
+ 												if(var22 == null) {
++													break;
++												}
++											}
++
++											if(var35 == EnumCreatureType.creature) {
++												boolean isGlitchEntity = var22.entityClass == EntityUU.class || var22.entityClass == EntityJJ.class || var22.entityClass == Entity____.class || var22.entityClass == EntityThatThing.class;
++												if(!isGlitchEntity && !isUnderCap) {
+ 													break;
+ 												}
+ 											}
+--- /dev/null
++++ net/minecraft/src/Model____.java
+@@ -1,0 +1,38 @@
++package net.minecraft.src;
++
++public class Model____ extends ModelBase {
++	public ModelRenderer head;
++	public ModelRenderer body;
++	public ModelRenderer arm0;
++	public ModelRenderer arm1;
++
++	public Model____() {
++		this.head = new ModelRenderer(this, 24, 8);
++		this.head.setTextureSize(128, 128);
++		this.head.addBox(-3.0F, -8.0F, -4.0F, 6, 16, 8, 0.0F);
++		this.head.setRotationPoint(0.0F, -21.0F, -1.0F);
++		
++		this.body = new ModelRenderer(this, 0, 8);
++		this.body.setTextureSize(128, 128);
++		this.body.addBox(-3.0F, -18.0F, -3.0F, 6, 36, 6, 0.0F);
++		this.body.setRotationPoint(0.0F, 5.0F, 0.0F);
++		
++		this.arm0 = new ModelRenderer(this, 0, 4);
++		this.arm0.setTextureSize(128, 128);
++		this.arm0.addBox(-23.0F, -1.0F, -1.0F, 46, 2, 2, 0.0F);
++		this.arm0.setRotationPoint(-26.0F, -11.0F, 2.0F);
++		
++		this.arm1 = new ModelRenderer(this, 0, 0);
++		this.arm1.setTextureSize(128, 128);
++		this.arm1.addBox(-23.0F, -1.0F, -1.0F, 46, 2, 2, 0.0F);
++		this.arm1.setRotationPoint(26.0F, -11.0F, 2.0F);
++	}
++
++	public void render(Entity var1, float var2, float var3, float var4, float var5, float var6, float var7) {
++		this.setRotationAngles(var2, var3, var4, var5, var6, var7, var1);
++		this.head.render(var7);
++		this.body.render(var7);
++		this.arm0.render(var7);
++		this.arm1.render(var7);
++	}
++}
+--- /dev/null
++++ net/minecraft/src/ModelUU.java
+@@ -1,0 +1,71 @@
++package net.minecraft.src;
++
++public class ModelUU extends ModelBase {
++    public ModelRenderer bipedHead;
++    public ModelRenderer bipedBody;
++    public ModelRenderer bipedRightArm;
++    public ModelRenderer bipedRightArm2;
++    public ModelRenderer bipedLeftArm;
++    public ModelRenderer bipedLeftArm2;
++    public ModelRenderer bipedLeftLeg;
++    public ModelRenderer bipedLeftLeg2;
++
++    public ModelUU() {
++        this(0.0F);
++    }
++
++    public ModelUU(float var1) {
++        this(var1, 0.0F);
++    }
++
++    public ModelUU(float var1, float var2) {
++        this.bipedHead = new ModelRenderer(this, 0, 0);
++        this.bipedHead.addBox(-8.0F, -4.0F, -4.0F, 16, 8, 8, var1);
++        this.bipedHead.setRotationPoint(14.0F, -16.0F + var2, 4.0F);
++        this.bipedBody = new ModelRenderer(this, 24, 16);
++        this.bipedBody.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedBody.setRotationPoint(-14.0F, -14.0F + var2, 2.0F);
++        this.bipedRightArm = new ModelRenderer(this, 48, 0);
++        this.bipedRightArm.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedRightArm.setRotationPoint(6.0F, 8.0F + var2, 2.0F);
++        this.bipedRightArm2 = new ModelRenderer(this, 48, 0);
++        this.bipedRightArm2.addBox(-2.0F, -14.0F, -2.0F, 4, 28, 4, var1);
++        this.bipedRightArm2.setRotationPoint(-14.0F, 6.0F + var2, 2.0F);
++        this.bipedLeftArm = new ModelRenderer(this, 48, 0);
++        this.bipedLeftArm.mirror = true;
++        this.bipedLeftArm.addBox(-2.0F, -14.0F, -2.0F, 4, 28, 4, var1);
++        this.bipedLeftArm.setRotationPoint(14.0F, 6.0F + var2, 2.0F);
++        this.bipedLeftArm2 = new ModelRenderer(this, 48, 0);
++        this.bipedLeftArm2.mirror = true;
++        this.bipedLeftArm2.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++        this.bipedLeftArm2.setRotationPoint(-6.0F, 8.0F + var2, 2.0F);
++        this.bipedLeftLeg = new ModelRenderer(this, 0, 16);
++        this.bipedLeftLeg.mirror = true;
++        this.bipedLeftLeg.addBox(-4.0F, -6.0F, -2.0F, 8, 12, 4, var1);
++        this.bipedLeftLeg.setRotationPoint(-6.0F, 20.0F + var2, 2.0F);
++        this.bipedLeftLeg2 = new ModelRenderer(this, 0, 16);
++        this.bipedLeftLeg2.mirror = true;
++        this.bipedLeftLeg2.addBox(-4.0F, -6.0F, -2.0F, 8, 12, 4, var1);
++        this.bipedLeftLeg2.setRotationPoint(6.0F, 20.0F + var2, 2.0F);
++    }
++
++    public void render(Entity var1, float var2, float var3, float var4, float var5, float var6, float var7) {
++        this.setRotationAngles(var2, var3, var4, var5, var6, var7, var1);
++        this.bipedHead.render(var7);
++        this.bipedBody.render(var7);
++        this.bipedRightArm.render(var7);
++        this.bipedRightArm2.render(var7);
++        this.bipedLeftArm.render(var7);
++        this.bipedLeftArm2.render(var7);
++        this.bipedLeftLeg.render(var7);
++        this.bipedLeftLeg2.render(var7);
++    }
++
++    public void setRotationAngles(float var1, float var2, float var3, float var4, float var5, float var6, Entity var7) {
++        this.bipedHead.rotateAngleZ = -1.5708F;
++        this.bipedRightArm.rotateAngleZ = 1.5708F;
++        this.bipedLeftArm2.rotateAngleZ = -1.5708F;
++        this.bipedLeftLeg.rotateAngleZ = 1.5708F;
++        this.bipedLeftLeg2.rotateAngleZ = -1.5708F;
++    }
++}
+--- /dev/null
++++ net/minecraft/src/ShaderHelper.java
+@@ -1,0 +1,588 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++import org.lwjgl.opengl.GL20;
++import net.minecraft.client.Minecraft;
++import java.io.*;
++import java.nio.charset.StandardCharsets;
++
++public class ShaderHelper {
++    private static int programId = 0;
++    private static int vertexShaderId = 0;
++    private static int fragmentShaderId = 0;
++
++    private static int postProgramId = 0;
++    private static int postVertexShaderId = 0;
++    private static int postFragmentShaderId = 0;
++
++    private static int worldProgramId = 0;
++    private static int worldVertexShaderId = 0;
++    private static int worldFragmentShaderId = 0;
++
++    private static int noiseEntityProgramId = 0;
++    private static int noiseEntityVertexShaderId = 0;
++    private static int noiseEntityFragmentShaderId = 0;
++
++    private static int backgroundNoiseProgramId = 0;
++    private static int backgroundNoiseVertexShaderId = 0;
++    private static int backgroundNoiseFragmentShaderId = 0;
++
++    private static int backgroundTextureId = 0;
++    private static int bgLastTexWidth = 0;
++    private static int bgLastTexHeight = 0;
++    public static int menuType = 0;
++
++    public static int getProgramId() {
++        return programId;
++    }
++
++    public static int getPostProgramId() {
++        return postProgramId;
++    }
++
++    public static int getWorldProgramId() {
++        return worldProgramId;
++    }
++
++    public static int getNoiseEntityProgramId() {
++        return noiseEntityProgramId;
++    }
++
++    public static int getBackgroundNoiseProgramId() {
++        return backgroundNoiseProgramId;
++    }
++
++    public static int getBackgroundTextureId() {
++        return backgroundTextureId;
++    }
++
++    /**
++     * クラスパスからシェーダーを初期化・ロードします。
++     * @param vertPath クラスパス上の頂点シェーダーのパス (例: "/unfounded.vert")
++     * @param fragPath クラスパス上のフラグメントシェーダーのパス (例: "/unfounded_ambient.frag")
++     */
++    public static void init(String vertPath, String fragPath) {
++        if (programId != 0) {
++            deleteShader();
++        }
++        
++        programId = GL20.glCreateProgram();
++        
++        // 頂点シェーダーの読み込み
++        String vertSource = readShaderFromClasspath(vertPath);
++        if (vertSource.isEmpty()) {
++            // パススルー頂点シェーダーのフォールバック
++            vertSource = "void main() { gl_Position = ftransform(); }";
++        }
++        vertexShaderId = compileShader(vertSource, GL20.GL_VERTEX_SHADER);
++        
++        // フラグメントシェーダーの読み込み
++        String fragSource = readShaderFromClasspath(fragPath);
++        fragmentShaderId = compileShader(fragSource, GL20.GL_FRAGMENT_SHADER);
++        
++        if (vertexShaderId == 0 || fragmentShaderId == 0) {
++            System.err.println("[Unfounded Shader] Compilation failed. Defaulting to fixed pipeline.");
++            deleteShader();
++            return;
++        }
++        
++        GL20.glAttachShader(programId, vertexShaderId);
++        GL20.glAttachShader(programId, fragmentShaderId);
++        
++        GL20.glLinkProgram(programId);
++        if (GL20.glGetProgrami(programId, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader] Link error: " + GL20.glGetProgramInfoLog(programId, 1024));
++            deleteShader();
++            return;
++        }
++        
++        GL20.glValidateProgram(programId);
++        if (GL20.glGetProgrami(programId, GL20.GL_VALIDATE_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader] Validation error: " + GL20.glGetProgramInfoLog(programId, 1024));
++        }
++        System.out.println("[Unfounded Shader] Loaded successfully from classpath. Program ID: " + programId);
++    }
++
++    public static void initPost(String vertPath, String fragPath) {
++        if (postProgramId != 0) {
++            deletePostShader();
++        }
++        
++        postProgramId = GL20.glCreateProgram();
++        
++        String vertSource = readShaderFromClasspath(vertPath);
++        if (vertSource.isEmpty()) {
++            vertSource = "void main() { gl_Position = ftransform(); }";
++        }
++        postVertexShaderId = compileShader(vertSource, GL20.GL_VERTEX_SHADER);
++        
++        String fragSource = readShaderFromClasspath(fragPath);
++        postFragmentShaderId = compileShader(fragSource, GL20.GL_FRAGMENT_SHADER);
++        
++        if (postVertexShaderId == 0 || postFragmentShaderId == 0) {
++            System.err.println("[Unfounded Shader PP] Compilation failed.");
++            deletePostShader();
++            return;
++        }
++        
++        GL20.glAttachShader(postProgramId, postVertexShaderId);
++        GL20.glAttachShader(postProgramId, postFragmentShaderId);
++        
++        GL20.glLinkProgram(postProgramId);
++        if (GL20.glGetProgrami(postProgramId, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader PP] Link error: " + GL20.glGetProgramInfoLog(postProgramId, 1024));
++            deletePostShader();
++            return;
++        }
++        
++        GL20.glValidateProgram(postProgramId);
++        if (GL20.glGetProgrami(postProgramId, GL20.GL_VALIDATE_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader PP] Validation error: " + GL20.glGetProgramInfoLog(postProgramId, 1024));
++        }
++        System.out.println("[Unfounded Shader PP] Loaded successfully from classpath. Program ID: " + postProgramId);
++    }
++    
++    public static void useShader(float time, float width, float height, float mouseX, float mouseY) {
++        if (programId == 0) return;
++        
++        GL20.glUseProgram(programId);
++        
++        // Uniformsの設定
++        int timeLoc = GL20.glGetUniformLocation(programId, "u_time");
++        if (timeLoc != -1) {
++            GL20.glUniform1f(timeLoc, time);
++        }
++        
++        int resLoc = GL20.glGetUniformLocation(programId, "u_resolution");
++        if (resLoc != -1) {
++            GL20.glUniform2f(resLoc, width, height);
++        }
++
++        int mouseLoc = GL20.glGetUniformLocation(programId, "u_mouse");
++        if (mouseLoc != -1) {
++            GL20.glUniform2f(mouseLoc, mouseX, mouseY);
++        }
++    }
++
++    public static void usePostShader(float time, float width, float height, float mouseX, float mouseY) {
++        if (postProgramId == 0) return;
++        
++        GL20.glUseProgram(postProgramId);
++        
++        int timeLoc = GL20.glGetUniformLocation(postProgramId, "u_time");
++        if (timeLoc != -1) {
++            GL20.glUniform1f(timeLoc, time);
++        }
++        
++        int resLoc = GL20.glGetUniformLocation(postProgramId, "u_resolution");
++        if (resLoc != -1) {
++            GL20.glUniform2f(resLoc, width, height);
++        }
++
++        int mouseLoc = GL20.glGetUniformLocation(postProgramId, "u_mouse");
++        if (mouseLoc != -1) {
++            GL20.glUniform2f(mouseLoc, mouseX, mouseY);
++        }
++
++        int isMenuLoc = GL20.glGetUniformLocation(postProgramId, "u_isMenu");
++        if (isMenuLoc != -1) {
++            GL20.glUniform1i(isMenuLoc, menuType);
++        }
++
++        int event2Loc = GL20.glGetUniformLocation(postProgramId, "u_event2Active");
++        if (event2Loc != -1) {
++            float event2Strength = ClientServerEvent.event2Active ? (float)ClientServerEvent.event2Timer / 120.0F : 0.0F;
++            GL20.glUniform1f(event2Loc, event2Strength);
++        }
++
++        int event3TimeLoc = GL20.glGetUniformLocation(postProgramId, "u_event3Time");
++        int event3Loc = GL20.glGetUniformLocation(postProgramId, "u_event3Active");
++        if (event3Loc != -1) {
++            float event3Strength = 0.0F;
++            float event3Time = 0.0F;
++            if (ClientServerEvent.event3Active) {
++                long elapsed = System.nanoTime() - ClientServerEvent.event3StartTime;
++                float elapsedSec = (float)elapsed / 1000000000.0F;
++                float durationSec = 6.0F;
++                if (elapsedSec < durationSec) {
++                    event3Time = elapsedSec;
++                    event3Strength = 1.0F - (elapsedSec / durationSec);
++                    event3Strength = event3Strength * event3Strength;
++                } else {
++                    ClientServerEvent.event3Active = false;
++                }
++            }
++            GL20.glUniform1f(event3Loc, event3Strength);
++            if (event3TimeLoc != -1) {
++                GL20.glUniform1f(event3TimeLoc, event3Time);
++            }
++        }
++
++        int event6Loc = GL20.glGetUniformLocation(postProgramId, "u_event6Active");
++        if (event6Loc != -1) {
++            float event6Strength = ClientServerEvent.event6Active ? (float)ClientServerEvent.event6Timer / 100.0F : 0.0F;
++            GL20.glUniform1f(event6Loc, event6Strength);
++        }
++
++        int event7Loc = GL20.glGetUniformLocation(postProgramId, "u_event7Active");
++        if (event7Loc != -1) {
++            float event7Strength = ClientServerEvent.event7Active ? (float)ClientServerEvent.event7Timer / 100.0F : 0.0F;
++            GL20.glUniform1f(event7Loc, event7Strength);
++        }
++
++        int event0Loc = GL20.glGetUniformLocation(postProgramId, "u_event0Active");
++        if (event0Loc != -1) {
++            GL20.glUniform1f(event0Loc, ClientServerEvent.event0Active ? 1.0F : 0.0F);
++        }
++
++        int event1Loc = GL20.glGetUniformLocation(postProgramId, "u_event1Active");
++        if (event1Loc != -1) {
++            GL20.glUniform1f(event1Loc, ClientServerEvent.event1Active ? 1.0F : 0.0F);
++        }
++
++        int event9Loc = GL20.glGetUniformLocation(postProgramId, "u_event9Active");
++        if (event9Loc != -1) {
++            GL20.glUniform1f(event9Loc, ClientServerEvent.event9Active ? ClientServerEvent.event9Strength : 0.0F);
++        }
++
++        int scaleLoc = GL20.glGetUniformLocation(postProgramId, "u_glitchScale");
++        if (scaleLoc != -1) {
++            float scale = 1.0F;
++            try {
++                int mode = Minecraft.getMinecraft().gameSettings.glitchEffect;
++                if (mode == 0) {
++                    scale = 0.0F;
++                } else if (mode == 1) {
++                    scale = 0.2F;
++                }
++            } catch (Exception e) {}
++            GL20.glUniform1f(scaleLoc, scale);
++        }
++    }
++    
++    public static void releaseShader() {
++        GL20.glUseProgram(0);
++    }
++    
++    private static int compileShader(String source, int type) {
++        if (source == null || source.isEmpty()) return 0;
++        
++        int shaderId = GL20.glCreateShader(type);
++        GL20.glShaderSource(shaderId, source);
++        GL20.glCompileShader(shaderId);
++        
++        if (GL20.glGetShaderi(shaderId, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
++            String info = GL20.glGetShaderInfoLog(shaderId, 1024);
++            System.err.println("[Unfounded Shader] Failed to compile shader (" + (type == GL20.GL_VERTEX_SHADER ? "VERT" : "FRAG") + "): " + info);
++            System.err.println("[Unfounded Shader] Source length: " + source.length());
++            if (source.length() > 100) {
++                System.err.println("[Unfounded Shader] Source tail: " + source.substring(source.length() - 100));
++            } else {
++                System.err.println("[Unfounded Shader] Source content: " + source);
++            }
++            GL20.glDeleteShader(shaderId);
++            return 0;
++        }
++        return shaderId;
++    }
++    
++    private static String readShaderFromClasspath(String resourcePath) {
++        try {
++            InputStream in = ShaderHelper.class.getResourceAsStream(resourcePath);
++            if (in != null) {
++                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
++                StringBuilder builder = new StringBuilder();
++                String line;
++                while ((line = reader.readLine()) != null) {
++                    builder.append(line).append("\n");
++                }
++                reader.close();
++                return builder.toString();
++            }
++        } catch (IOException e) {
++            System.err.println("[Unfounded Shader] Failed to read resource: " + resourcePath);
++        }
++        return "";
++    }
++    
++    public static void deleteShader() {
++        deletePostShader();
++        deleteWorldShader();
++        deleteNoiseEntityShader();
++        deleteBackgroundNoiseShader();
++        if (programId != 0) {
++            GL20.glUseProgram(0);
++            if (vertexShaderId != 0) {
++                GL20.glDetachShader(programId, vertexShaderId);
++                GL20.glDeleteShader(vertexShaderId);
++                vertexShaderId = 0;
++            }
++            if (fragmentShaderId != 0) {
++                GL20.glDetachShader(programId, fragmentShaderId);
++                GL20.glDeleteShader(fragmentShaderId);
++                fragmentShaderId = 0;
++            }
++            GL20.glDeleteProgram(programId);
++            programId = 0;
++        }
++        if (backgroundTextureId != 0) {
++            GL11.glDeleteTextures(backgroundTextureId);
++            backgroundTextureId = 0;
++            bgLastTexWidth = 0;
++            bgLastTexHeight = 0;
++        }
++    }
++
++    public static void deletePostShader() {
++        if (postProgramId != 0) {
++            if (postVertexShaderId != 0) {
++                GL20.glDetachShader(postProgramId, postVertexShaderId);
++                GL20.glDeleteShader(postVertexShaderId);
++                postVertexShaderId = 0;
++            }
++            if (postFragmentShaderId != 0) {
++                GL20.glDetachShader(postProgramId, postFragmentShaderId);
++                GL20.glDeleteShader(postFragmentShaderId);
++                postFragmentShaderId = 0;
++            }
++            GL20.glDeleteProgram(postProgramId);
++            postProgramId = 0;
++        }
++    }
++
++    public static void initWorld(String vertPath, String fragPath) {
++        if (worldProgramId != 0) {
++            deleteWorldShader();
++        }
++        
++        worldProgramId = GL20.glCreateProgram();
++        
++        String vertSource = readShaderFromClasspath(vertPath);
++        if (vertSource.isEmpty()) {
++            vertSource = "void main() { gl_Position = ftransform(); }";
++        }
++        worldVertexShaderId = compileShader(vertSource, GL20.GL_VERTEX_SHADER);
++        
++        String fragSource = readShaderFromClasspath(fragPath);
++        worldFragmentShaderId = compileShader(fragSource, GL20.GL_FRAGMENT_SHADER);
++        
++        if (worldVertexShaderId == 0 || worldFragmentShaderId == 0) {
++            System.err.println("[Unfounded Shader World] Compilation failed.");
++            deleteWorldShader();
++            return;
++        }
++        
++        GL20.glAttachShader(worldProgramId, worldVertexShaderId);
++        GL20.glAttachShader(worldProgramId, worldFragmentShaderId);
++        
++        GL20.glLinkProgram(worldProgramId);
++        if (GL20.glGetProgrami(worldProgramId, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader World] Link error: " + GL20.glGetProgramInfoLog(worldProgramId, 1024));
++            deleteWorldShader();
++            return;
++        }
++        System.out.println("[Unfounded Shader World] Loaded successfully. Program ID: " + worldProgramId);
++    }
++
++    public static void useWorldShader(float time, float width, float height) {
++        if (worldProgramId == 0) return;
++        
++        GL20.glUseProgram(worldProgramId);
++        
++        int timeLoc = GL20.glGetUniformLocation(worldProgramId, "u_time");
++        if (timeLoc != -1) {
++            GL20.glUniform1f(timeLoc, time);
++        }
++        
++        int resLoc = GL20.glGetUniformLocation(worldProgramId, "u_resolution");
++        if (resLoc != -1) {
++            GL20.glUniform2f(resLoc, width, height);
++        }
++    }
++
++    public static void deleteWorldShader() {
++        if (worldProgramId != 0) {
++            if (worldVertexShaderId != 0) {
++                GL20.glDetachShader(worldProgramId, worldVertexShaderId);
++                GL20.glDeleteShader(worldVertexShaderId);
++                worldVertexShaderId = 0;
++            }
++            if (worldFragmentShaderId != 0) {
++                GL20.glDetachShader(worldProgramId, worldFragmentShaderId);
++                GL20.glDeleteShader(worldFragmentShaderId);
++                worldFragmentShaderId = 0;
++            }
++            GL20.glDeleteProgram(worldProgramId);
++            worldProgramId = 0;
++        }
++    }
++
++    public static void captureBackground(int displayWidth, int displayHeight) {
++        if (postProgramId == 0) return; // Only capture if shader post-processing is active
++
++        if (backgroundTextureId == 0) {
++            backgroundTextureId = GL11.glGenTextures();
++        }
++
++        int texWidth = getNextPowerOfTwo(displayWidth);
++        int texHeight = getNextPowerOfTwo(displayHeight);
++
++        GL11.glBindTexture(GL11.GL_TEXTURE_2D, backgroundTextureId);
++
++        if (texWidth != bgLastTexWidth || texHeight != bgLastTexHeight) {
++            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGB, texWidth, texHeight, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, (java.nio.ByteBuffer)null);
++            bgLastTexWidth = texWidth;
++            bgLastTexHeight = texHeight;
++        }
++
++        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
++        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
++        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
++        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
++
++        GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, displayWidth, displayHeight);
++        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
++    }
++
++    public static void initNoiseEntity(String vertPath, String fragPath) {
++        if (noiseEntityProgramId != 0) {
++            deleteNoiseEntityShader();
++        }
++        
++        noiseEntityProgramId = GL20.glCreateProgram();
++        
++        String vertSource = readShaderFromClasspath(vertPath);
++        if (vertSource.isEmpty()) {
++            vertSource = "void main() { gl_Position = ftransform(); gl_TexCoord[0] = gl_MultiTexCoord0; gl_FrontColor = gl_Color; }";
++        }
++        noiseEntityVertexShaderId = compileShader(vertSource, GL20.GL_VERTEX_SHADER);
++        
++        String fragSource = readShaderFromClasspath(fragPath);
++        noiseEntityFragmentShaderId = compileShader(fragSource, GL20.GL_FRAGMENT_SHADER);
++        
++        if (noiseEntityVertexShaderId == 0 || noiseEntityFragmentShaderId == 0) {
++            System.err.println("[Unfounded Shader NoiseEntity] Compilation failed.");
++            deleteNoiseEntityShader();
++            return;
++        }
++        
++        GL20.glAttachShader(noiseEntityProgramId, noiseEntityVertexShaderId);
++        GL20.glAttachShader(noiseEntityProgramId, noiseEntityFragmentShaderId);
++        
++        GL20.glLinkProgram(noiseEntityProgramId);
++        if (GL20.glGetProgrami(noiseEntityProgramId, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader NoiseEntity] Link error: " + GL20.glGetProgramInfoLog(noiseEntityProgramId, 1024));
++            deleteNoiseEntityShader();
++            return;
++        }
++        System.out.println("[Unfounded Shader NoiseEntity] Loaded successfully. Program ID: " + noiseEntityProgramId);
++    }
++
++    public static void useNoiseEntityShader(float time, float strength) {
++        if (noiseEntityProgramId == 0) return;
++        
++        GL20.glUseProgram(noiseEntityProgramId);
++        
++        int timeLoc = GL20.glGetUniformLocation(noiseEntityProgramId, "u_time");
++        if (timeLoc != -1) {
++            GL20.glUniform1f(timeLoc, time);
++        }
++        
++        int strengthLoc = GL20.glGetUniformLocation(noiseEntityProgramId, "u_event9Active");
++        if (strengthLoc != -1) {
++            GL20.glUniform1f(strengthLoc, strength);
++        }
++    }
++
++    public static void deleteNoiseEntityShader() {
++        if (noiseEntityProgramId != 0) {
++            if (noiseEntityVertexShaderId != 0) {
++                GL20.glDetachShader(noiseEntityProgramId, noiseEntityVertexShaderId);
++                GL20.glDeleteShader(noiseEntityVertexShaderId);
++                noiseEntityVertexShaderId = 0;
++            }
++            if (noiseEntityFragmentShaderId != 0) {
++                GL20.glDetachShader(noiseEntityProgramId, noiseEntityFragmentShaderId);
++                GL20.glDeleteShader(noiseEntityFragmentShaderId);
++                noiseEntityFragmentShaderId = 0;
++            }
++            GL20.glDeleteProgram(noiseEntityProgramId);
++            noiseEntityProgramId = 0;
++        }
++    }
++
++    public static void initBackgroundNoise(String vertPath, String fragPath) {
++        if (backgroundNoiseProgramId != 0) {
++            deleteBackgroundNoiseShader();
++        }
++        
++        backgroundNoiseProgramId = GL20.glCreateProgram();
++        
++        String vertSource = readShaderFromClasspath(vertPath);
++        if (vertSource.isEmpty()) {
++            vertSource = "void main() { gl_Position = ftransform(); gl_TexCoord[0] = gl_MultiTexCoord0; gl_FrontColor = gl_Color; }";
++        }
++        backgroundNoiseVertexShaderId = compileShader(vertSource, GL20.GL_VERTEX_SHADER);
++        
++        String fragSource = readShaderFromClasspath(fragPath);
++        backgroundNoiseFragmentShaderId = compileShader(fragSource, GL20.GL_FRAGMENT_SHADER);
++        
++        if (backgroundNoiseVertexShaderId == 0 || backgroundNoiseFragmentShaderId == 0) {
++            System.err.println("[Unfounded Shader BackgroundNoise] Compilation failed.");
++            deleteBackgroundNoiseShader();
++            return;
++        }
++        
++        GL20.glAttachShader(backgroundNoiseProgramId, backgroundNoiseVertexShaderId);
++        GL20.glAttachShader(backgroundNoiseProgramId, backgroundNoiseFragmentShaderId);
++        
++        GL20.glLinkProgram(backgroundNoiseProgramId);
++        if (GL20.glGetProgrami(backgroundNoiseProgramId, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
++            System.err.println("[Unfounded Shader BackgroundNoise] Link error: " + GL20.glGetProgramInfoLog(backgroundNoiseProgramId, 1024));
++            deleteBackgroundNoiseShader();
++            return;
++        }
++        System.out.println("[Unfounded Shader BackgroundNoise] Loaded successfully. Program ID: " + backgroundNoiseProgramId);
++    }
++
++    public static void useBackgroundNoiseShader(float time) {
++        if (backgroundNoiseProgramId == 0) return;
++        
++        GL20.glUseProgram(backgroundNoiseProgramId);
++        
++        int timeLoc = GL20.glGetUniformLocation(backgroundNoiseProgramId, "u_time");
++        if (timeLoc != -1) {
++            GL20.glUniform1f(timeLoc, time);
++        }
++        
++        int strengthLoc = GL20.glGetUniformLocation(backgroundNoiseProgramId, "u_event9Active");
++        if (strengthLoc != -1) {
++            GL20.glUniform1f(strengthLoc, ClientServerEvent.event9Active ? ClientServerEvent.event9Strength : 0.0F);
++        }
++    }
++
++    public static void deleteBackgroundNoiseShader() {
++        if (backgroundNoiseProgramId != 0) {
++            if (backgroundNoiseVertexShaderId != 0) {
++                GL20.glDetachShader(backgroundNoiseProgramId, backgroundNoiseVertexShaderId);
++                GL20.glDeleteShader(backgroundNoiseVertexShaderId);
++                backgroundNoiseVertexShaderId = 0;
++            }
++            if (backgroundNoiseFragmentShaderId != 0) {
++                GL20.glDetachShader(backgroundNoiseProgramId, backgroundNoiseFragmentShaderId);
++                GL20.glDeleteShader(backgroundNoiseFragmentShaderId);
++                backgroundNoiseFragmentShaderId = 0;
++            }
++            GL20.glDeleteProgram(backgroundNoiseProgramId);
++            backgroundNoiseProgramId = 0;
++        }
++    }
++
++    private static int getNextPowerOfTwo(int value) {
++        int val = 1;
++        while (val < value) {
++            val <<= 1;
++        }
++        return val;
++    }
++}
+--- net/minecraft/src/NetHandler.java
++++ net/minecraft/src/NetHandler.java
+@@ -300,4 +300,12 @@
+ 	public void handleWorldParticles(Packet63WorldParticles var1) {
+ 		this.unexpectedPacket(var1);
+ 	}
++
++	public void handleEvent(Packet80Event var1) {
++		this.unexpectedPacket(var1);
++	}
++
++	public void handleSound(Packet81Sound var1) {
++		this.unexpectedPacket(var1);
++	}
+ }
+--- net/minecraft/src/InventoryLargeChest.java
++++ net/minecraft/src/InventoryLargeChest.java
+@@ -82,4 +82,12 @@
+ 	public boolean isStackValidForSlot(int var1, ItemStack var2) {
+ 		return true;
+ 	}
++
++	public IInventory getUpperChest() {
++		return this.upperChest;
++	}
++
++	public IInventory getLowerChest() {
++		return this.lowerChest;
++	}
+ }
+--- /dev/null
++++ net/minecraft/src/ClientServerEvent.java
+@@ -1,0 +1,291 @@
++package net.minecraft.src;
++
++import net.minecraft.client.Minecraft;
++
++public class ClientServerEvent {
++	public static boolean event2Active = false;
++	public static int event2Timer = 0;
++	public static boolean event3Active = false;
++	public static int event3Timer = 0;
++	public static long event3StartTime = 0;
++	public static boolean event5Active = false;
++	public static int event5TickTimer = 0;
++	public static int event5Count = 0;
++	public static boolean event6Active = false;
++	public static int event6Timer = 0;
++	public static boolean event7Active = false;
++	public static int event7Timer = 0;
++	public static boolean event0Active = false;
++	public static boolean event1Active = false;
++	public static boolean event9Active = false;
++	public static boolean event9Spawned = false;
++	public static float event9Strength = 0.0F;
++	private static int errorTriggerTimer = -1;
++
++	public static void e0(EntityPlayerSP playerSP) {
++		event0Active = true;
++		WavPlaySound.playsoundLoop("/sounds/event0.wav");
++		GlitchWindowEffect.spawnHell();
++	}
++
++	public static void e1(EntityPlayerSP playerSP) {
++		event1Active = true;
++		WavPlaySound.playsoundLoop("/sounds/event1.wav");
++		GlitchWindowEffect.spawnSpiralAndX();
++	}
++
++	public static void e2(EntityPlayerSP playerSP) {
++		event2Active = true;
++		event2Timer = 120; // 6 seconds
++	}
++
++	public static void update() {
++		if (event2Active) {
++			event2Timer--;
++			if (event2Timer <= 0) {
++				event2Active = false;
++			}
++		}
++		if (event3Active) {
++			event3Timer--;
++			if (event3Timer <= 0) {
++				event3Active = false;
++			}
++		}
++		if (event5Active) {
++			event5TickTimer--;
++			if (event5TickTimer <= 0) {
++				Minecraft mc = Minecraft.getMinecraft();
++				if (mc != null && mc.thePlayer != null && event5Count > 0) {
++					mc.thePlayer.sendChatMessage("Help or Hell");
++					event5Count--;
++					event5TickTimer = 5; // 0.25s delay (5 ticks)
++				} else {
++					event5Active = false;
++				}
++			}
++		}
++		if (event6Active) {
++			event6Timer--;
++			if (event6Timer <= 0) {
++				event6Active = false;
++			}
++		}
++		if (event7Active) {
++			event7Timer--;
++			if (event7Timer <= 0) {
++				event7Active = false;
++			}
++		}
++		if (event9Active) {
++			Minecraft mc = Minecraft.getMinecraft();
++			if (mc != null && mc.theWorld != null && mc.thePlayer != null) {
++				EntityPlayer player = mc.thePlayer;
++				EntityNoise nearestNoise = null;
++				double minDist = Double.MAX_VALUE;
++				
++				for (int i = 0; i < mc.theWorld.loadedEntityList.size(); i++) {
++					Entity entity = (Entity) mc.theWorld.loadedEntityList.get(i);
++					if (entity instanceof EntityNoise) {
++						double dist = player.getDistanceToEntity(entity);
++						if (dist < minDist) {
++							minDist = dist;
++							nearestNoise = (EntityNoise) entity;
++						}
++					}
++				}
++				
++				if (nearestNoise != null) {
++					event9Spawned = true;
++					if (minDist < 15.0D) {
++						event9Strength = (float) ((15.0D - minDist) / 15.0D);
++						event9Strength = event9Strength * event9Strength;
++					} else {
++						event9Strength = 0.0F;
++					}
++					
++					// Dynamic noise volume adjustment based on closeness (max volume 0.80)
++					float targetVolume = 0.08f + event9Strength * 0.72f;
++					NoiseSoundManager.setVolume(targetVolume);
++					
++					if (minDist < 1.2D && errorTriggerTimer == -1) {
++						errorTriggerTimer = 10;
++						nearestNoise.setDead();
++					}
++				} else {
++					if (event9Spawned && errorTriggerTimer == -1) {
++						event9Strength = 0.0F;
++						event9Active = false;
++						NoiseSoundManager.setVolume(0.08f); // Revert to baseline volume
++					}
++				}
++			}
++			
++			if (errorTriggerTimer > 0) {
++				errorTriggerTimer--;
++				event9Strength = 1.0F;
++				if (errorTriggerTimer == 0) {
++					triggerGlitchCrash();
++				}
++			}
++		}
++	}
++
++	public static void e3(EntityPlayerSP playerSP) {
++		event3Active = true;
++		event3Timer = 120; // 6 seconds
++		event3StartTime = System.nanoTime();
++	}
++
++	public static void e4(EntityPlayerSP playerSP) {
++		try {
++			java.io.File tempDir = new java.io.File(System.getProperty("java.io.tmpdir"));
++			java.io.File tempFile = new java.io.File(tempDir, "help.txt");
++			java.io.FileWriter writer = new java.io.FileWriter(tempFile);
++			String word = Math.random() > 0.5 ? "Help" : "Hell";
++			for (int i = 0; i < 16; i++) {
++				writer.write(word + "\r\n");
++			}
++			writer.close();
++			
++			String os = System.getProperty("os.name").toLowerCase();
++			if (os.contains("win")) {
++				Runtime.getRuntime().exec(new String[]{"notepad.exe", tempFile.getAbsolutePath()});
++			} else {
++				java.awt.Desktop.getDesktop().edit(tempFile);
++			}
++		} catch (Exception e) {
++			e.printStackTrace();
++		}
++	}
++
++	public static void e5(EntityPlayerSP playerSP) {
++		event5Active = true;
++		event5TickTimer = 0;
++		event5Count = 16;
++	}
++
++	public static void e6(EntityPlayerSP playerSP) {
++		event6Active = true;
++		event6Timer = 100; // 5 seconds (100 ticks)
++	}
++
++	public static void e7(EntityPlayerSP playerSP) {
++		event7Active = true;
++		event7Timer = 100; // 5 seconds (100 ticks)
++	}
++
++	public static void e8(EntityPlayerSP playerSP) {
++
++	}
++
++	public static void e9(EntityPlayerSP playerSP) {
++		event9Active = true;
++		event9Spawned = false;
++		event9Strength = 0.0F;
++		errorTriggerTimer = -1;
++	}
++
++	public static void e10(EntityPlayerSP playerSP) {
++
++	}
++
++	public static void e11(EntityPlayerSP playerSP) {
++
++	}
++
++	public static void e12(EntityPlayerSP playerSP) {
++
++	}
++
++	public static void ClientEvent(EntityPlayerSP playerSP, int event) {
++		switch(event) {
++		case 0:
++			e0(playerSP);
++			break;
++		case 1:
++			e1(playerSP);
++			break;
++		case 2:
++			e2(playerSP);
++			break;
++		case 3:
++			e3(playerSP);
++			break;
++		case 4:
++			e4(playerSP);
++			break;
++		case 5:
++			e5(playerSP);
++			break;
++		case 6:
++			e6(playerSP);
++			break;
++		case 7:
++			e7(playerSP);
++			break;
++		case 8:
++			e8(playerSP);
++			break;
++		case 9:
++			e9(playerSP);
++			break;
++		case 10:
++			e10(playerSP);
++			break;
++		case 11:
++			e11(playerSP);
++			break;
++		case 12:
++			e12(playerSP);
++			break;
++		case 99:
++			triggerGlitchCrash();
++			break;
++		}
++	}
++
++	public static void resetAllEvents() {
++		event0Active = false;
++		event1Active = false;
++		event2Active = false;
++		event2Timer = 0;
++		event3Active = false;
++		event3Timer = 0;
++		event3StartTime = 0;
++		event5Active = false;
++		event5TickTimer = 0;
++		event5Count = 0;
++		event6Active = false;
++		event6Timer = 0;
++		event7Active = false;
++		event7Timer = 0;
++		event9Active = false;
++		event9Spawned = false;
++		event9Strength = 0.0F;
++		errorTriggerTimer = -1;
++		NoiseSoundManager.setVolume(0.08f);
++	}
++
++	public static void triggerGlitchCrash() {
++		new Thread(new Runnable() {
++			@Override
++			public void run() {
++				try {
++					Thread.sleep(100);
++				} catch (InterruptedException e) {}
++				
++				javax.swing.JOptionPane.showMessageDialog(
++					null, 
++					"Fatal Error: Access violation in memory block 0x00F39D20A.\nReason: Unfounded.EntityNoise.overflowException\n\nThe game has been terminated to prevent data corruption.", 
++					"Unfounded Engine Error", 
++					javax.swing.JOptionPane.ERROR_MESSAGE
++				);
++				
++				System.exit(1);
++			}
++		}).start();
++		
++		throw new RuntimeException("ERROR: Unfounded EntityNoise Access Violation");
++	}
++}
+--- net/minecraft/src/Block.java
++++ net/minecraft/src/Block.java
+@@ -181,6 +181,7 @@
+ 	public static final Block stairsNetherQuartz = (new BlockStairs(156, blockNetherQuartz, 0)).setUnlocalizedName("stairsQuartz");
+ 	public static final Block railActivator = (new BlockRailPowered(157)).setHardness(0.7F).setStepSound(soundMetalFootstep).setUnlocalizedName("activatorRail");
+ 	public static final Block dropper = (new BlockDropper(158)).setHardness(3.5F).setStepSound(soundStoneFootstep).setUnlocalizedName("dropper");
++	public static final Block nobedrock = (new Block(159, Material.rock)).setHardness(4.0F).setResistance(6000000.0F).setStepSound(soundStoneFootstep).setUnlocalizedName("nobedrock").disableStats().setCreativeTab(CreativeTabs.tabBlock);
+ 	public final int blockID;
+ 	protected float blockHardness;
+ 	protected float blockResistance;
+@@ -776,7 +777,11 @@
+ 	}
+ 
+ 	public void registerIcons(IconRegister var1) {
+-		this.blockIcon = var1.registerIcon(this.unlocalizedName);
++		if (this == nobedrock) {
++			this.blockIcon = var1.registerIcon("bedrock");
++		} else {
++			this.blockIcon = var1.registerIcon(this.unlocalizedName);
++		}
+ 	}
+ 
+ 	public String getItemIconName() {
+--- net/minecraft/src/GuiScreen.java
++++ net/minecraft/src/GuiScreen.java
+@@ -166,6 +166,7 @@
+ 
+ 	public void drawDefaultBackground() {
+ 		this.drawWorldBackground(0);
++		ShaderHelper.captureBackground(this.mc.displayWidth, this.mc.displayHeight);
+ 	}
+ 
+ 	public void drawWorldBackground(int var1) {
+@@ -180,6 +181,13 @@
+ 	public void drawBackground(int var1) {
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glDisable(GL11.GL_FOG);
++		
++		if (ShaderHelper.getBackgroundNoiseProgramId() == 0) {
++			ShaderHelper.initBackgroundNoise("/unfounded.vert", "/unfounded_background.frag");
++		}
++		float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++		ShaderHelper.useBackgroundNoiseShader(time);
++		
+ 		Tessellator var2 = Tessellator.instance;
+ 		this.mc.renderEngine.bindTexture("/gui/background.png");
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+@@ -191,6 +199,8 @@
+ 		var2.addVertexWithUV((double)this.width, 0.0D, 0.0D, (double)((float)this.width / var3), (double)var1);
+ 		var2.addVertexWithUV(0.0D, 0.0D, 0.0D, 0.0D, (double)var1);
+ 		var2.draw();
++		
++		ShaderHelper.releaseShader();
+ 	}
+ 
+ 	public boolean doesGuiPauseGame() {
+--- net/minecraft/src/TaskWorldCreation.java
++++ net/minecraft/src/TaskWorldCreation.java
+@@ -28,8 +28,6 @@
+ 			GuiScreenCreateOnlineWorld.func_96246_c(this.field_96590_a).displayGuiScreen(GuiScreenCreateOnlineWorld.func_96247_b(this.field_96590_a));
+ 		} catch (ExceptionMcoService var4) {
+ 			this.func_96575_a(var4.field_96391_b);
+-		} catch (UnsupportedEncodingException var5) {
+-		} catch (IOException var6) {
+ 		} catch (Exception var7) {
+ 			this.func_96575_a("Failed");
+ 		}
+--- /dev/null
++++ net/minecraft/src/EntityBinary444.java
+@@ -1,0 +1,22 @@
++package net.minecraft.src;
++
++public class EntityBinary444 extends EntityUnfounded {
++
++	public EntityBinary444(World var1) {
++		super(var1);
++		this.texture = "/addmob/binary444.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 60;
++	}
++}
+--- net/minecraft/server/MinecraftServer.java
++++ net/minecraft/server/MinecraftServer.java
+@@ -511,7 +511,7 @@
+ 	}
+ 
+ 	public String getMinecraftVersion() {
+-		return "1.5.2";
++		return "Unfounded";
+ 	}
+ 
+ 	public int getCurrentPlayerCount() {
+--- /dev/null
++++ net/minecraft/src/RenderThatThing.java
+@@ -1,0 +1,11 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class RenderThatThing extends RenderLiving {
++
++	public RenderThatThing() {
++		super(new ModelThatThing(0.0F), 0.5F);
++	}
++
++}
+--- /dev/null
++++ net/minecraft/src/EntityNoise.java
+@@ -1,0 +1,78 @@
++package net.minecraft.src;
++
++public class EntityNoise extends EntityUnfounded {
++
++	public EntityNoise(World var1) {
++		super(var1);
++		this.texture = "/addmob/noise.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	@Override
++	public void onUpdate() {
++		super.onUpdate();
++		// If this entity exists client-side but event9 is not active, remove it immediately
++		if (this.worldObj.isRemote && !ClientServerEvent.event9Active) {
++			this.setDead();
++		}
++	}
++
++	@Override
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		Entity attacker = var1.getEntity();
++		if (attacker instanceof EntityPlayer) {
++			if (this.worldObj.isRemote) {
++				ClientServerEvent.triggerGlitchCrash();
++			} else {
++				if (attacker instanceof EntityPlayerMP) {
++					EntityPlayerMP playerMP = (EntityPlayerMP) attacker;
++					playerMP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(99));
++				}
++			}
++		}
++		return false;
++	}
++
++	@Override
++	public boolean attackEntityAsMob(Entity var1) {
++		if (var1 instanceof EntityPlayer) {
++			if (this.worldObj.isRemote) {
++				ClientServerEvent.triggerGlitchCrash();
++			} else {
++				if (var1 instanceof EntityPlayerMP) {
++					EntityPlayerMP playerMP = (EntityPlayerMP) var1;
++					playerMP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(99));
++				}
++			}
++		}
++		return super.attackEntityAsMob(var1);
++	}
++
++	@Override
++	public void readEntityFromNBT(NBTTagCompound var1) {
++		super.readEntityFromNBT(var1);
++		// If loaded from a save file, delete it immediately to break any crash loops
++		this.setDead();
++	}
++
++	@Override
++	public void writeEntityToNBT(NBTTagCompound var1) {
++		super.writeEntityToNBT(var1);
++	}
++
++	@Override
++	public boolean addEntityID(NBTTagCompound var1) {
++		// Prevent saving to NBT at all
++		return false;
++	}
++
++	@Override
++	public boolean addNotRiddenEntityID(NBTTagCompound var1) {
++		// Prevent saving to NBT at all
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/NoiseSoundManager.java
+@@ -1,0 +1,106 @@
++package net.minecraft.src;
++
++import javax.sound.sampled.AudioFormat;
++import javax.sound.sampled.AudioSystem;
++import javax.sound.sampled.SourceDataLine;
++
++public class NoiseSoundManager {
++    private static Thread soundThread = null;
++    private static volatile boolean running = false;
++    private static SourceDataLine line = null;
++    private static volatile float volume = 0.08f; // Low volume (0.0 to 1.0) to prevent annoyance
++
++    public static void setVolume(float v) {
++        volume = Math.max(0.0f, Math.min(1.0f, v));
++    }
++
++    public static void startNoise() {
++        if (soundThread != null && running) {
++            return;
++        }
++
++        running = true;
++        soundThread = new Thread(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    // 44100Hz, 16bit, Mono, Signed, Little Endian
++                    AudioFormat format = new AudioFormat(44100.0f, 16, 1, true, false);
++                    line = AudioSystem.getSourceDataLine(format);
++                    line.open(format, 8192); // Small buffer for quick stop response
++                    line.start();
++
++                    byte[] buffer = new byte[4096];
++                    double phase = 0.0;
++                    double humFrequency = 55.0; // 55Hz (A1) deep hum
++                    java.util.Random rand = new java.util.Random();
++
++                    while (running) {
++                        for (int i = 0; i < buffer.length; i += 2) {
++                            // 55Hz deep sine wave hum
++                            double angle = phase * 2.0 * Math.PI;
++                            double val = Math.sin(angle) * 0.6;
++                            
++                            // Add 110Hz harmonic for buzz texture
++                            val += Math.sin(angle * 2.0) * 0.25;
++                            
++                            // Add a soft high-frequency colored crackle noise
++                            double noise = (rand.nextDouble() * 2.0 - 1.0) * 0.08;
++                            val += noise;
++                            
++                            // Clamp value
++                            val = Math.max(-1.0, Math.min(1.0, val));
++                            
++                            // Apply volume scaling
++                            short sample = (short) (val * 32767.0 * volume);
++                            
++                            // Write 16-bit little-endian sample
++                            buffer[i] = (byte) (sample & 0xFF);
++                            buffer[i + 1] = (byte) ((sample >> 8) & 0xFF);
++                            
++                            phase += humFrequency / 44100.0;
++                            if (phase >= 1.0) {
++                                phase -= 1.0;
++                            }
++                        }
++                        
++                        // Write to the audio line
++                        int written = 0;
++                        while (written < buffer.length && running) {
++                            int result = line.write(buffer, written, buffer.length - written);
++                            if (result < 0) break;
++                            written += result;
++                        }
++                    }
++                } catch (Exception e) {
++                    System.err.println("[Unfounded Sound] Error playing noise: " + e.getMessage());
++                } finally {
++                    cleanup();
++                }
++            }
++        }, "Unfounded Ambient Audio Thread");
++        soundThread.setDaemon(true);
++        soundThread.start();
++        System.out.println("[Unfounded Sound] Constant drone noise thread started.");
++    }
++
++    public static void stopNoise() {
++        if (!running) return;
++        running = false;
++        if (soundThread != null) {
++            soundThread.interrupt();
++            soundThread = null;
++        }
++    }
++
++    private static void cleanup() {
++        if (line != null) {
++            try {
++                line.stop();
++                line.flush();
++                line.close();
++            } catch (Exception e) {}
++            line = null;
++        }
++    }
++}
+--- /dev/null
++++ net/minecraft/src/Entity4466.java
+@@ -1,0 +1,29 @@
++package net.minecraft.src;
++
++public class Entity4466 extends EntityUnfounded {
++	private int timer = 6 * 20;
++
++	public Entity4466(World var1) {
++		super(var1);
++		this.texture = "/addmob/4466.png";
++		this.moveSpeed = 0.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		this.timer--;
++		if(!this.worldObj.isRemote) {
++			if(this.timer <= 0) {
++				this.setDead();
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- net/minecraft/src/World.java
++++ net/minecraft/src/World.java
+@@ -51,6 +51,7 @@
+ 	private int ambientTickCountdown = this.rand.nextInt(12000);
+ 	int[] lightUpdateBlockList = new int[-Short.MIN_VALUE];
+ 	public boolean isRemote = false;
++	public WorldRandomEvent worldRandomEvent;
+ 
+ 	public BiomeGenBase getBiomeGenForCoords(int var1, int var2) {
+ 		if(this.blockExists(var1, 0, var2)) {
+@@ -87,6 +88,7 @@
+ 		this.chunkProvider = this.createChunkProvider();
+ 		this.calculateInitialSkylight();
+ 		this.calculateInitialWeather();
++		this.worldRandomEvent = new WorldRandomEvent(this);
+ 	}
+ 
+ 	public World(ISaveHandler var1, String var2, WorldSettings var3, WorldProvider var4, Profiler var5, ILogAgent var6) {
+@@ -95,6 +97,7 @@
+ 		this.mapStorage = new MapStorage(var1);
+ 		this.worldLogAgent = var6;
+ 		this.worldInfo = var1.loadWorldInfo();
++		this.worldRandomEvent = new WorldRandomEvent(this);
+ 		if(var4 != null) {
+ 			this.provider = var4;
+ 		} else if(this.worldInfo != null && this.worldInfo.getDimension() != 0) {
+@@ -235,11 +238,21 @@
+ 		return this.getChunkFromChunkCoords(var1 >> 4, var2 >> 4);
+ 	}
+ 
++	public boolean isFlippingDecorations = false;
++	public int flipChunkX;
++	public int flipChunkZ;
++
+ 	public Chunk getChunkFromChunkCoords(int var1, int var2) {
+ 		return this.chunkProvider.provideChunk(var1, var2);
+ 	}
+ 
+ 	public boolean setBlock(int var1, int var2, int var3, int var4, int var5, int var6) {
++		if(this.isFlippingDecorations && (var1 >> 4) == this.flipChunkX && (var3 >> 4) == this.flipChunkZ) {
++			int flippedY = 135 - var2;
++			if(flippedY >= 0 && flippedY < 256) {
++				var2 = flippedY;
++			}
++		}
+ 		if(var1 >= -30000000 && var3 >= -30000000 && var1 < 30000000 && var3 < 30000000) {
+ 			if(var2 < 0) {
+ 				return false;
+@@ -300,6 +313,12 @@
+ 	}
+ 
+ 	public boolean setBlockMetadataWithNotify(int var1, int var2, int var3, int var4, int var5) {
++		if(this.isFlippingDecorations && (var1 >> 4) == this.flipChunkX && (var3 >> 4) == this.flipChunkZ) {
++			int flippedY = 135 - var2;
++			if(flippedY >= 0 && flippedY < 256) {
++				var2 = flippedY;
++			}
++		}
+ 		if(var1 >= -30000000 && var3 >= -30000000 && var1 < 30000000 && var3 < 30000000) {
+ 			if(var2 < 0) {
+ 				return false;
+@@ -1875,6 +1894,9 @@
+ 	}
+ 
+ 	public void tick() {
++		if (!this.isRemote) {
++			this.worldRandomEvent.tickEvents();
++		}
+ 		this.updateWeather();
+ 	}
+ 
+--- net/minecraft/src/EntityRenderer.java
++++ net/minecraft/src/EntityRenderer.java
+@@ -8,6 +8,8 @@
+ import org.lwjgl.input.Mouse;
+ import org.lwjgl.opengl.Display;
+ import org.lwjgl.opengl.GL11;
++import org.lwjgl.opengl.GL13;
++import org.lwjgl.opengl.GL20;
+ import org.lwjgl.opengl.GLContext;
+ import org.lwjgl.opengl.NVFogDistance;
+ import org.lwjgl.util.glu.GLU;
+@@ -16,6 +18,10 @@
+ 	public static boolean anaglyphEnable = false;
+ 	public static int anaglyphField;
+ 	private Minecraft mc;
++	private int menuScreenTextureId = -1;
++	private int menuBgTextureId = -1;
++	private int menuLastTexWidth = -1;
++	private int menuLastTexHeight = -1;
+ 	private float farPlaneDistance = 0.0F;
+ 	public ItemRenderer itemRenderer;
+ 	private int rendererUpdateCount;
+@@ -623,6 +629,7 @@
+ 	}
+ 
+ 	public void updateCameraAndRender(float var1) {
++		NoiseSoundManager.startNoise();
+ 		this.mc.mcProfiler.startSection("lightTex");
+ 		if(this.lightmapUpdateNeeded) {
+ 			this.updateLightmap(var1);
+@@ -681,6 +688,7 @@
+ 				}
+ 
+ 				this.renderEndNanoTime = System.nanoTime();
++
+ 				this.mc.mcProfiler.endStartSection("gui");
+ 				if(!this.mc.gameSettings.hideGUI || this.mc.currentScreen != null) {
+ 					this.mc.ingameGUI.renderGameOverlay(var1, this.mc.currentScreen != null, var16, var17);
+@@ -716,6 +724,121 @@
+ 				}
+ 			}
+ 
++			// UNIVERSAL SCREEN POST-PROCESSING GLITCH (Applies to all screens, gameplay, inventories, world gen, etc.)
++			if (true) {
++				int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
++				boolean wasTexture2DEnabled = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
++
++				int displayWidth = this.mc.displayWidth;
++				int displayHeight = this.mc.displayHeight;
++				int texWidth = this.getNextPowerOfTwo(displayWidth);
++				int texHeight = this.getNextPowerOfTwo(displayHeight);
++
++				if (this.menuScreenTextureId == -1) {
++					this.menuScreenTextureId = GL11.glGenTextures();
++				}
++				GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.menuScreenTextureId);
++				
++				if (texWidth != this.menuLastTexWidth || texHeight != this.menuLastTexHeight) {
++					GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGB, texWidth, texHeight, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, (java.nio.ByteBuffer)null);
++					this.menuLastTexWidth = texWidth;
++					this.menuLastTexHeight = texHeight;
++				}
++				
++				GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
++				GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
++				GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
++				GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
++
++				GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, displayWidth, displayHeight);
++
++				if (ShaderHelper.getPostProgramId() == 0) {
++					ShaderHelper.initPost("/unfounded.vert", "/unfounded.frag");
++				}
++				if (ShaderHelper.getNoiseEntityProgramId() == 0) {
++					ShaderHelper.initNoiseEntity("/unfounded.vert", "/unfounded_noise_entity.frag");
++				}
++
++				float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++				float width = (float)displayWidth;
++				float height = (float)displayHeight;
++
++				GL11.glEnable(GL11.GL_TEXTURE_2D);
++				GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.menuScreenTextureId);
++
++				// Determine menu type: 2 for GuiMainMenu, 1 for other screens (inventory, etc.), 0 for in-game
++				if (this.mc.currentScreen == null) {
++					ShaderHelper.menuType = 0;
++				} else if (this.mc.currentScreen instanceof GuiMainMenu) {
++					ShaderHelper.menuType = 2;
++				} else {
++					ShaderHelper.menuType = 1;
++				}
++
++				ShaderHelper.usePostShader(time, width, height, 0.0F, 0.0F);
++				
++				int progId = ShaderHelper.getPostProgramId();
++				int scaleLoc = org.lwjgl.opengl.GL20.glGetUniformLocation(progId, "u_texScale");
++				if (scaleLoc != -1) {
++					org.lwjgl.opengl.GL20.glUniform2f(scaleLoc, width / (float)this.menuLastTexWidth, height / (float)this.menuLastTexHeight);
++				}
++
++				int bgTexLoc = org.lwjgl.opengl.GL20.glGetUniformLocation(progId, "u_bgTexture");
++				if (bgTexLoc != -1) {
++					org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE1);
++					GL11.glBindTexture(GL11.GL_TEXTURE_2D, ShaderHelper.getBackgroundTextureId());
++					org.lwjgl.opengl.GL20.glUniform1i(bgTexLoc, 1);
++					org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
++				}
++
++				GL11.glMatrixMode(GL11.GL_PROJECTION);
++				GL11.glPushMatrix();
++				GL11.glLoadIdentity();
++				GL11.glMatrixMode(GL11.GL_MODELVIEW);
++				GL11.glPushMatrix();
++				GL11.glLoadIdentity();
++				
++				this.setupOverlayRendering();
++
++				GL11.glDisable(GL11.GL_DEPTH_TEST);
++				GL11.glDepthMask(false);
++
++				Tessellator var4 = Tessellator.instance;
++				var4.startDrawingQuads();
++				
++				ScaledResolution varRes = new ScaledResolution(this.mc.gameSettings, this.mc.displayWidth, this.mc.displayHeight);
++				double screenW = (double)varRes.getScaledWidth();
++				double screenH = (double)varRes.getScaledHeight();
++				
++				var4.addVertex(0.0D, screenH, 0.0D);
++				var4.addVertex(screenW, screenH, 0.0D);
++				var4.addVertex(screenW, 0.0D, 0.0D);
++				var4.addVertex(0.0D, 0.0D, 0.0D);
++				var4.draw();
++
++				GL11.glEnable(GL11.GL_DEPTH_TEST);
++				GL11.glDepthMask(true);
++
++				ShaderHelper.releaseShader();
++
++				org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE1);
++				GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
++				org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
++				
++				// Restore OpenGL states
++				GL11.glBindTexture(GL11.GL_TEXTURE_2D, previousTexture);
++				if (wasTexture2DEnabled) {
++					GL11.glEnable(GL11.GL_TEXTURE_2D);
++				} else {
++					GL11.glDisable(GL11.GL_TEXTURE_2D);
++				}
++
++				GL11.glMatrixMode(GL11.GL_PROJECTION);
++				GL11.glPopMatrix();
++				GL11.glMatrixMode(GL11.GL_MODELVIEW);
++				GL11.glPopMatrix();
++			}
++
+ 		}
+ 	}
+ 
+@@ -798,6 +921,13 @@
+ 			this.mc.renderEngine.bindTexture("/terrain.png");
+ 			RenderHelper.disableStandardItemLighting();
+ 			this.mc.mcProfiler.endStartSection("terrain");
++			float worldTime = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++			float worldW = (float)this.mc.displayWidth;
++			float worldH = (float)this.mc.displayHeight;
++			if (ShaderHelper.getWorldProgramId() == 0) {
++				ShaderHelper.initWorld("/unfounded.vert", "/unfounded_world.frag");
++			}
++			ShaderHelper.useWorldShader(worldTime, worldW, worldH);
+ 			var5.sortAndRender(var4, 0, (double)var1);
+ 			GL11.glShadeModel(GL11.GL_FLAT);
+ 			EntityPlayer var17;
+@@ -813,6 +943,7 @@
+ 				this.mc.mcProfiler.endStartSection("particles");
+ 				var6.renderParticles(var4, var1);
+ 				this.disableLightmap((double)var1);
++				ShaderHelper.releaseShader();
+ 				if(this.mc.objectMouseOver != null && var4.isInsideOfMaterial(Material.water) && var4 instanceof EntityPlayer && !this.mc.gameSettings.hideGUI) {
+ 					var17 = (EntityPlayer)var4;
+ 					GL11.glDisable(GL11.GL_ALPHA_TEST);
+@@ -831,6 +962,7 @@
+ 			GL11.glEnable(GL11.GL_BLEND);
+ 			GL11.glDisable(GL11.GL_CULL_FACE);
+ 			this.mc.renderEngine.bindTexture("/terrain.png");
++			ShaderHelper.useWorldShader(worldTime, worldW, worldH);
+ 			if(this.mc.gameSettings.fancyGraphics) {
+ 				this.mc.mcProfiler.endStartSection("water");
+ 				if(this.mc.gameSettings.ambientOcclusion != 0) {
+@@ -858,6 +990,7 @@
+ 				this.mc.mcProfiler.endStartSection("water");
+ 				var5.sortAndRender(var4, 1, (double)var1);
+ 			}
++			ShaderHelper.releaseShader();
+ 
+ 			GL11.glDepthMask(true);
+ 			GL11.glEnable(GL11.GL_CULL_FACE);
+@@ -1418,5 +1551,20 @@
+ 
+ 	static Minecraft getRendererMinecraft(EntityRenderer var0) {
+ 		return var0.mc;
++	}
++
++	private int getNextPowerOfTwo(int value) {
++		int val = 1;
++		while (val < value) {
++			val <<= 1;
++		}
++		return val;
++	}
++
++	private boolean isShaderScreen(GuiScreen screen) {
++		if (screen == null) return false;
++		if (this.mc.theWorld == null) return true;
++		String name = screen.getClass().getSimpleName();
++		return screen instanceof GuiOptions || name.contains("Options") || name.contains("Controls") || name.contains("Language");
+ 	}
+ }
+--- /dev/null
++++ net/minecraft/src/WavPlaySound.java
+@@ -1,0 +1,76 @@
++package net.minecraft.src;
++
++import java.io.BufferedInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import javax.sound.sampled.*;
++
++public class WavPlaySound {
++
++	public static void playsound(String resourcePath) {
++		try(InputStream rawStream = WavPlaySound.class.getResourceAsStream(resourcePath)) {
++			if(rawStream == null) {
++				System.err.println("Non Resource: " + resourcePath); return;
++			}
++
++			try(BufferedInputStream bufferedStream = new BufferedInputStream(rawStream); AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(bufferedStream)) {
++
++				Clip clip = AudioSystem.getClip(); clip.open(audioInputStream); clip.start();
++
++				clip.addLineListener(event->{
++					if(event.getType() == LineEvent.Type.STOP) {
++						clip.close();
++					}
++				});
++
++				while(clip.isRunning()) {
++					Thread.sleep(100);
++				}
++			}
++
++		} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
++			e.printStackTrace();
++		} catch (InterruptedException e) {
++			Thread.currentThread().interrupt();
++		}
++	}
++
++	public static void playsoundLoop(final String resourcePath) {
++		new Thread(new Runnable() {
++			@Override
++			public void run() {
++				try(InputStream rawStream = WavPlaySound.class.getResourceAsStream(resourcePath)) {
++					if(rawStream == null) {
++						System.err.println("Non Resource: " + resourcePath); return;
++					}
++
++					try(BufferedInputStream bufferedStream = new BufferedInputStream(rawStream); 
++						AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(bufferedStream)) {
++
++						Clip clip = AudioSystem.getClip(); 
++						clip.open(audioInputStream);
++						// 無限ループ再生を設定
++						clip.loop(Clip.LOOP_CONTINUOUSLY);
++						clip.start();
++
++						clip.addLineListener(event -> {
++							if(event.getType() == LineEvent.Type.STOP) {
++								clip.close();
++							}
++						});
++
++						// クリップが閉じられるまでスレッドを待機
++						while(clip.isOpen()) {
++							Thread.sleep(100);
++						}
++					}
++
++				} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
++					e.printStackTrace();
++				} catch (InterruptedException e) {
++					Thread.currentThread().interrupt();
++				}
++			}
++		}).start();
++	}
++}
+--- net/minecraft/src/EntityCreature.java
++++ net/minecraft/src/EntityCreature.java
+@@ -1,7 +1,7 @@
+ package net.minecraft.src;
+ 
+ public abstract class EntityCreature extends EntityLiving {
+-	private PathEntity pathToEntity;
++	protected PathEntity pathToEntity;
+ 	protected Entity entityToAttack;
+ 	protected boolean hasAttacked = false;
+ 	protected int fleeingTick = 0;
+--- net/minecraft/src/GuiIngame.java
++++ net/minecraft/src/GuiIngame.java
+@@ -28,6 +28,7 @@
+ 	}
+ 
+ 	public void renderGameOverlay(float var1, boolean var2, int var3, int var4) {
++		GlitchWindowEffect.updateWindowShake();
+ 		ScaledResolution var5 = new ScaledResolution(this.mc.gameSettings, this.mc.displayWidth, this.mc.displayHeight);
+ 		int var6 = var5.getScaledWidth();
+ 		int var7 = var5.getScaledHeight();
+@@ -340,7 +341,7 @@
+ 		if(this.mc.gameSettings.showDebugInfo) {
+ 			this.mc.mcProfiler.startSection("debug");
+ 			GL11.glPushMatrix();
+-			var8.drawStringWithShadow("Minecraft 1.5.2 (" + this.mc.debug + ")", 2, 2, 16777215);
++			var8.drawStringWithShadow("Minecraft Unfounded (" + this.mc.debug + ")", 2, 2, 16777215);
+ 			var8.drawStringWithShadow(this.mc.debugInfoRenders(), 2, 12, 16777215);
+ 			var8.drawStringWithShadow(this.mc.getEntityDebug(), 2, 22, 16777215);
+ 			var8.drawStringWithShadow(this.mc.debugInfoEntities(), 2, 32, 16777215);
+@@ -369,6 +370,8 @@
+ 			this.drawString(var8, String.format("ws: %.3f, fs: %.3f, g: %b, fl: %d", new Object[]{Float.valueOf(this.mc.thePlayer.capabilities.getWalkSpeed()), Float.valueOf(this.mc.thePlayer.capabilities.getFlySpeed()), Boolean.valueOf(this.mc.thePlayer.onGround), Integer.valueOf(this.mc.theWorld.getHeightValue(var47, var23))}), 2, 104, 14737632);
+ 			GL11.glPopMatrix();
+ 			this.mc.mcProfiler.endSection();
++		} else {
++			var8.drawStringWithShadow("Minecraft Unfounded", 2, 2, 16777215);
+ 		}
+ 
+ 		if(this.recordPlayingUpFor > 0) {
+@@ -481,6 +484,16 @@
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glEnable(GL11.GL_ALPHA_TEST);
++
++		// "Help" の巨大テキスト描画
++		if (GlitchWindowEffect.showHelpText) {
++			GL11.glPushMatrix();
++			GL11.glTranslatef((float)(var6 / 2), (float)(var7 / 2), 0.0F);
++			GL11.glScalef(8.0F, 8.0F, 1.0F); // 8倍に拡大
++			String text = "Help";
++			var8.drawStringWithShadow(text, -var8.getStringWidth(text) / 2, -4, 0xFF0000); // 赤色
++			GL11.glPopMatrix();
++		}
+ 	}
+ 
+ 	private void func_96136_a(ScoreObjective var1, int var2, int var3, FontRenderer var4) {
+--- net/minecraft/src/ServerData.java
++++ net/minecraft/src/ServerData.java
+@@ -7,7 +7,7 @@
+ 	public String serverMOTD;
+ 	public long pingToServer;
+ 	public int field_82821_f = 61;
+-	public String gameVersion = "1.5.2";
++	public String gameVersion = "Unfounded";
+ 	public boolean field_78841_f = false;
+ 	private boolean field_78842_g = true;
+ 	private boolean acceptsTextures = false;
+--- /dev/null
++++ net/minecraft/src/Packet81Sound.java
+@@ -1,0 +1,32 @@
++package net.minecraft.src;
++
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++
++public class Packet81Sound extends Packet {
++	public String path;
++
++	public Packet81Sound() {
++	}
++
++	public Packet81Sound(String var1) {
++		this.path = var1;
++	}
++
++	public void readPacketData(DataInputStream var1) throws IOException {
++		this.path = var1.readUTF();
++	}
++
++	public void writePacketData(DataOutputStream var1) throws IOException {
++		var1.writeUTF(this.path);
++	}
++
++	public void processPacket(NetHandler var1) {
++		var1.handleSound(this);
++	}
++
++	public int getPacketSize() {
++		return this.path.length();
++	}
++}
+--- /dev/null
++++ net/minecraft/src/ModelNINI.java
+@@ -1,0 +1,90 @@
++package net.minecraft.src;
++
++public class ModelNINI extends ModelBase {
++	public ModelRenderer bipedHead;
++	public ModelRenderer bipedHeadwear;
++	public ModelRenderer bipedBody;
++	public ModelRenderer bipedRightArm;
++	public ModelRenderer bipedLeftArm;
++	public ModelRenderer bipedRightLeg;
++	public ModelRenderer bipedLeftLeg;
++
++	public ModelNINI() {
++		this(0.0F);
++	}
++
++	public ModelNINI(float var1) {
++		this(var1, 0.0F);
++	}
++
++	public ModelNINI(float var1, float var2) {
++		this.textureWidth = 64;
++		this.textureHeight = 64;
++		// 頭部
++		this.bipedHead = new ModelRenderer(this, 0, 26);
++		this.bipedHead.addBox(-4.0F, -8.0F, -4.0F, 8, 8, 8, var1);
++		this.bipedHead.setRotationPoint(0.0F, -10.0F + var2, -5.0F);
++
++		// 頭部装飾
++		this.bipedHeadwear = new ModelRenderer(this, 0, 0);
++		this.bipedHeadwear.addBox(-4.0F, -8.0F, -4.0F, 8, 18, 8, var1 + 0.5F);
++		this.bipedHeadwear.setRotationPoint(0.0F, -10.0F + var2, -5.0F);
++
++		// 胴体 (body と body_r1 を1つのパーツに統合)
++		// テクスチャは body_r1 (0, 42) を使用し、角度を 0.1745 + 0.1745 = 0.349 に合算
++		this.bipedBody = new ModelRenderer(this, 0, 42);
++		this.bipedBody.addBox(-2.0F, -6.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedBody.setRotationPoint(0.0F, -4.3867F + var2, -1.6587F);
++		this.bipedBody.rotateAngleX = 0.349F;
++
++		// 左腕
++		this.bipedLeftArm = new ModelRenderer(this, 16, 42);
++		this.bipedLeftArm.addBox(-1.5F, -2.0F, -2.0F, 3, 4, 4, var1);
++		this.bipedLeftArm.setRotationPoint(2.5F, 0.0F + var2, -4.0F);
++
++		// 右腕
++		this.bipedRightArm = new ModelRenderer(this, 44, 0);
++		this.bipedRightArm.addBox(-1.5F, -2.0F, -2.0F, 3, 4, 4, var1);
++		this.bipedRightArm.setRotationPoint(-2.5F, 0.0F + var2, -4.0F);
++
++		// 左脚
++		this.bipedLeftLeg = new ModelRenderer(this, 32, 0);
++		this.bipedLeftLeg.addBox(-1.0F, -2.0F, -2.0F, 2, 24, 4, var1);
++		this.bipedLeftLeg.setRotationPoint(3.0F, 2.0F + var2, 0.0F);
++
++		// 右脚
++		this.bipedRightLeg = new ModelRenderer(this, 32, 28);
++		this.bipedRightLeg.addBox(-1.0F, -2.0F, -2.0F, 2, 24, 4, var1);
++		this.bipedRightLeg.setRotationPoint(-3.0F, 2.0F + var2, 0.0F);
++	}
++
++	public void render(Entity var1, float var2, float var3, float var4, float var5, float var6, float var7) {
++		this.setRotationAngles(var2, var3, var4, var5, var6, var7, var1);
++		this.bipedHead.render(var7);
++		this.bipedBody.render(var7);
++		this.bipedRightArm.render(var7);
++		this.bipedLeftArm.render(var7);
++		this.bipedRightLeg.render(var7);
++		this.bipedLeftLeg.render(var7);
++		this.bipedHeadwear.render(var7);
++	}
++
++
++	public void setRotationAngles(float var1, float var2, float var3, float var4, float var5, float var6, Entity var7) {
++		this.bipedHead.rotateAngleY = var4 / (180.0F / (float)Math.PI);
++		this.bipedHead.rotateAngleX = var5 / (180.0F / (float)Math.PI);
++		this.bipedHeadwear.rotateAngleY = this.bipedHead.rotateAngleY;
++		this.bipedHeadwear.rotateAngleX = this.bipedHead.rotateAngleX;
++		this.bipedRightLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 1.4F * var2;
++		this.bipedLeftLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 1.4F * var2;
++		this.bipedRightLeg.rotateAngleY = 0.0F;
++		this.bipedLeftLeg.rotateAngleY = 0.0F;
++		float var8;
++		if(this.onGround > -9990.0F) {
++			var8 = this.onGround;
++			this.bipedBody.rotateAngleY = MathHelper.sin(MathHelper.sqrt_float(var8) * (float)Math.PI * 2.0F) * 0.2F;
++		}
++
++	}
++
++}
+--- /dev/null
++++ net/minecraft/src/ItemGlitch.java
+@@ -1,0 +1,12 @@
++package net.minecraft.src;
++
++public class ItemGlitch extends Item {
++	public ItemGlitch(int id) {
++		super(id);
++	}
++
++	@Override
++	public void registerIcons(IconRegister iconRegister) {
++		// 何もしない（テクスチャ未割り当て状態にする）
++	}
++}
+--- net/minecraft/src/BlockChest.java
++++ net/minecraft/src/BlockChest.java
+@@ -240,6 +240,10 @@
+ 			for(int var8 = 0; var8 < var7.getSizeInventory(); ++var8) {
+ 				ItemStack var9 = var7.getStackInSlot(var8);
+ 				if(var9 != null) {
++					// glitchItem のドロップをスキップ（消滅）させます
++					if(var9.itemID == Item.glitchItem.itemID) {
++						continue;
++					}
+ 					float var10 = this.random.nextFloat() * 0.8F + 0.1F;
+ 					float var11 = this.random.nextFloat() * 0.8F + 0.1F;
+ 
+--- net/minecraft/client/Minecraft.java
++++ net/minecraft/client/Minecraft.java
+@@ -16,105 +16,7 @@
+ import java.util.Iterator;
+ import java.util.List;
+ import javax.swing.JPanel;
+-import net.minecraft.src.AchievementList;
+-import net.minecraft.src.AnvilSaveConverter;
+-import net.minecraft.src.AxisAlignedBB;
+-import net.minecraft.src.Block;
+-import net.minecraft.src.CallableClientMemoryStats;
+-import net.minecraft.src.CallableClientProfiler;
+-import net.minecraft.src.CallableGLInfo;
+-import net.minecraft.src.CallableLWJGLVersion;
+-import net.minecraft.src.CallableModded;
+-import net.minecraft.src.CallableParticleScreenName;
+-import net.minecraft.src.CallableTexturePack;
+-import net.minecraft.src.CallableTickingScreenName;
+-import net.minecraft.src.CallableType2;
+-import net.minecraft.src.CallableUpdatingScreenName;
+-import net.minecraft.src.ColorizerFoliage;
+-import net.minecraft.src.ColorizerGrass;
+-import net.minecraft.src.CrashReport;
+-import net.minecraft.src.CrashReportCategory;
+-import net.minecraft.src.EffectRenderer;
+-import net.minecraft.src.EntityBoat;
+-import net.minecraft.src.EntityClientPlayerMP;
+-import net.minecraft.src.EntityItemFrame;
+-import net.minecraft.src.EntityList;
+-import net.minecraft.src.EntityLiving;
+-import net.minecraft.src.EntityMinecart;
+-import net.minecraft.src.EntityPainting;
+-import net.minecraft.src.EntityRenderer;
+-import net.minecraft.src.EnumMovingObjectType;
+-import net.minecraft.src.EnumOS;
+-import net.minecraft.src.EnumOSHelper;
+-import net.minecraft.src.EnumOptions;
+-import net.minecraft.src.FontRenderer;
+-import net.minecraft.src.GLAllocation;
+-import net.minecraft.src.GameSettings;
+-import net.minecraft.src.GameWindowListener;
+-import net.minecraft.src.GuiAchievement;
+-import net.minecraft.src.GuiChat;
+-import net.minecraft.src.GuiConnecting;
+-import net.minecraft.src.GuiGameOver;
+-import net.minecraft.src.GuiIngame;
+-import net.minecraft.src.GuiIngameMenu;
+-import net.minecraft.src.GuiInventory;
+-import net.minecraft.src.GuiMainMenu;
+-import net.minecraft.src.GuiMemoryErrorScreen;
+-import net.minecraft.src.GuiScreen;
+-import net.minecraft.src.GuiSleepMP;
+-import net.minecraft.src.HttpUtil;
+-import net.minecraft.src.ILogAgent;
+-import net.minecraft.src.INetworkManager;
+-import net.minecraft.src.IPlayerUsage;
+-import net.minecraft.src.ISaveFormat;
+-import net.minecraft.src.ISaveHandler;
+-import net.minecraft.src.IntegratedServer;
+-import net.minecraft.src.Item;
+-import net.minecraft.src.ItemRenderer;
+-import net.minecraft.src.ItemStack;
+-import net.minecraft.src.KeyBinding;
+-import net.minecraft.src.LoadingScreenRenderer;
+-import net.minecraft.src.LogAgent;
+-import net.minecraft.src.MathHelper;
+-import net.minecraft.src.MemoryConnection;
+-import net.minecraft.src.MinecraftError;
+-import net.minecraft.src.MinecraftFakeLauncher;
+-import net.minecraft.src.MouseHelper;
+-import net.minecraft.src.MovementInputFromOptions;
+-import net.minecraft.src.MovingObjectPosition;
+-import net.minecraft.src.NetClientHandler;
+-import net.minecraft.src.OpenGlHelper;
+-import net.minecraft.src.Packet3Chat;
+-import net.minecraft.src.PlayerControllerMP;
+-import net.minecraft.src.PlayerUsageSnooper;
+-import net.minecraft.src.Profiler;
+-import net.minecraft.src.ProfilerResult;
+-import net.minecraft.src.RenderBlocks;
+-import net.minecraft.src.RenderEngine;
+-import net.minecraft.src.RenderGlobal;
+-import net.minecraft.src.RenderManager;
+-import net.minecraft.src.ReportedException;
+-import net.minecraft.src.ScaledResolution;
+-import net.minecraft.src.ScreenShotHelper;
+-import net.minecraft.src.ServerData;
+-import net.minecraft.src.Session;
+-import net.minecraft.src.SoundManager;
+-import net.minecraft.src.StatCollector;
+-import net.minecraft.src.StatFileWriter;
+-import net.minecraft.src.StatList;
+-import net.minecraft.src.StatStringFormatKeyInv;
+-import net.minecraft.src.StringTranslate;
+-import net.minecraft.src.Tessellator;
+-import net.minecraft.src.TextureManager;
+-import net.minecraft.src.TexturePackList;
+-import net.minecraft.src.ThreadClientSleep;
+-import net.minecraft.src.ThreadDownloadResources;
+-import net.minecraft.src.ThreadShutdown;
+-import net.minecraft.src.Timer;
+-import net.minecraft.src.WorldClient;
+-import net.minecraft.src.WorldInfo;
+-import net.minecraft.src.WorldRenderer;
+-import net.minecraft.src.WorldSettings;
++import net.minecraft.src.*;
+ import org.lwjgl.LWJGLException;
+ import org.lwjgl.Sys;
+ import org.lwjgl.input.Keyboard;
+@@ -261,7 +163,7 @@
+ 			Display.setDisplayMode(new DisplayMode(this.displayWidth, this.displayHeight));
+ 		}
+ 
+-		Display.setTitle("Minecraft Minecraft 1.5.2");
++		Display.setTitle("Minecraft Unfounded");
+ 		this.getLogAgent().logInfo("LWJGL Version: " + Sys.getVersion());
+ 
+ 		try {
+@@ -1034,6 +936,7 @@
+ 	}
+ 
+ 	public void runTick() {
++		ClientServerEvent.update();
+ 		if(this.rightClickDelayTimer > 0) {
+ 			--this.rightClickDelayTimer;
+ 		}
+@@ -1439,6 +1342,7 @@
+ 	}
+ 
+ 	public void loadWorld(WorldClient var1, String var2) {
++		ClientServerEvent.resetAllEvents();
+ 		this.statFileWriter.syncStats();
+ 		if(var1 == null) {
+ 			NetClientHandler var3 = this.getNetHandler();
+--- /dev/null
++++ net/minecraft/src/RenderJJ.java
+@@ -1,0 +1,10 @@
++package net.minecraft.src;
++
++public class RenderJJ extends RenderLiving {
++	protected ModelJJ modelBipedMain;
++
++	public RenderJJ(ModelJJ var1, float var2) {
++		super(var1, var2);
++		this.modelBipedMain = var1;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/Packet80Event.java
+@@ -1,0 +1,32 @@
++package net.minecraft.src;
++
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++
++public class Packet80Event extends Packet {
++	public int event;
++
++	public Packet80Event() {
++	}
++
++	public Packet80Event(int var1) {
++		this.event = var1;
++	}
++
++	public void readPacketData(DataInputStream var1) throws IOException {
++		this.event = var1.readInt();
++	}
++
++	public void writePacketData(DataOutputStream var1) throws IOException {
++		var1.writeInt(this.event);
++	}
++
++	public void processPacket(NetHandler var1) {
++		var1.handleEvent(this);
++	}
++
++	public int getPacketSize() {
++		return this.event;
++	}
++}
+--- net/minecraft/src/EntityPlayer.java
++++ net/minecraft/src/EntityPlayer.java
+@@ -620,6 +620,49 @@
+ 						this.alertWolves((EntityLiving)var3, false);
+ 					}
+ 
++					if(var3 instanceof EntityNINI) {
++						var3.setDead();
++						WorldGenLongFix.restoreBackup(this.worldObj);
++						this.setPositionAndUpdate(WorldGenLongFix.origPlayerX, WorldGenLongFix.origPlayerY, WorldGenLongFix.origPlayerZ);
++						if(this instanceof EntityPlayerMP) {
++							((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(0));
++						}
++					}
++
++					if(var3 instanceof EntityLengthFix) {
++						var3.setDead();
++						WorldGenLongFix.restoreBackup(this.worldObj);
++						this.setPositionAndUpdate(WorldGenLongFix.origPlayerX, WorldGenLongFix.origPlayerY, WorldGenLongFix.origPlayerZ);
++						if(this instanceof EntityPlayerMP) {
++							((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(1));
++						}
++					}
++
++					if(var3 instanceof EntityPublicVoid) {
++						var3.setDead();
++						if(this instanceof EntityPlayerMP) {
++							((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(6));
++						}
++					}
++
++					if(var3 instanceof EntityBinary444) {
++						var3.setDead();
++						if(this instanceof EntityPlayerMP) {
++							((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(7));
++						}
++					}
++
++					if(var3 instanceof EntityNoise) {
++						var3.setDead();
++						if(this.worldObj.isRemote) {
++							ClientServerEvent.triggerGlitchCrash();
++						} else {
++							if(this instanceof EntityPlayerMP) {
++								((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(99));
++							}
++						}
++					}
++
+ 					this.addStat(StatList.damageTakenStat, var2);
+ 					return super.attackEntityFrom(var1, var2);
+ 				}
+@@ -846,6 +889,49 @@
+ 					if(var1 instanceof EntityLiving) {
+ 						if(var1.isEntityAlive()) {
+ 							this.alertWolves((EntityLiving)var1, true);
++						}
++
++						if(var1 instanceof EntityNINI) {
++							var1.setDead();
++							WorldGenLongFix.restoreBackup(this.worldObj);
++							this.setPositionAndUpdate(WorldGenLongFix.origPlayerX, WorldGenLongFix.origPlayerY, WorldGenLongFix.origPlayerZ);
++							if(this instanceof EntityPlayerMP) {
++								((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(0));
++							}
++						}
++
++						if(var1 instanceof EntityLengthFix) {
++							var1.setDead();
++							WorldGenLongFix.restoreBackup(this.worldObj);
++							this.setPositionAndUpdate(WorldGenLongFix.origPlayerX, WorldGenLongFix.origPlayerY, WorldGenLongFix.origPlayerZ);
++							if(this instanceof EntityPlayerMP) {
++								((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(1));
++							}
++						}
++
++						if(var1 instanceof EntityPublicVoid) {
++							var1.setDead();
++							if(this instanceof EntityPlayerMP) {
++								((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(6));
++							}
++						}
++
++						if(var1 instanceof EntityBinary444) {
++							var1.setDead();
++							if(this instanceof EntityPlayerMP) {
++								((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(7));
++							}
++						}
++
++						if(var1 instanceof EntityNoise) {
++							var1.setDead();
++							if(this.worldObj.isRemote) {
++								ClientServerEvent.triggerGlitchCrash();
++							} else {
++								if(this instanceof EntityPlayerMP) {
++									((EntityPlayerMP)this).playerNetServerHandler.sendPacketToPlayer(new Packet80Event(99));
++								}
++							}
+ 						}
+ 
+ 						this.addStat(StatList.damageDealtStat, var2);
+--- net/minecraft/src/Packet.java
++++ net/minecraft/src/Packet.java
+@@ -277,6 +277,8 @@
+ 		addIdClassMapping(63, true, false, Packet63WorldParticles.class);
+ 		addIdClassMapping(70, true, false, Packet70GameEvent.class);
+ 		addIdClassMapping(71, true, false, Packet71Weather.class);
++		addIdClassMapping(80, true, true, Packet80Event.class);
++		addIdClassMapping(81, true, true, Packet81Sound.class);
+ 		addIdClassMapping(100, true, false, Packet100OpenWindow.class);
+ 		addIdClassMapping(101, true, true, Packet101CloseWindow.class);
+ 		addIdClassMapping(102, false, true, Packet102WindowClick.class);
+--- /dev/null
++++ net/minecraft/src/CommandRandomEventDebug.java
+@@ -1,0 +1,79 @@
++package net.minecraft.src;
++
++import java.util.List;
++
++public class CommandRandomEventDebug extends CommandBase {
++
++    @Override
++    public String getCommandName() {
++        return "randomevent";
++    }
++
++    @Override
++    public int getRequiredPermissionLevel() {
++        // レベル2はチート（コマンド）が許可されているワールド、またはマルチプレイのOPのみが使用可能であることを意味します。
++        // これにより、サバイバルなどのチート無効ワールドでは自動的に使用不可能になります。
++        return 2;
++    }
++
++    @Override
++    public String getCommandUsage(ICommandSender var1) {
++        return "/randomevent <0-15>";
++    }
++
++    @Override
++    public void processCommand(ICommandSender sender, String[] args) {
++        if (args.length < 1) {
++            sender.sendChatToPlayer("Usage: " + this.getCommandUsage(sender));
++            return;
++        }
++
++        try {
++            int eventId = Integer.parseInt(args[0]);
++            if (eventId < 0 || eventId > 15) {
++                sender.sendChatToPlayer("Event ID must be between 0 and 15");
++                return;
++            }
++
++            // コマンド実行者をプレイヤーとして取得
++            EntityPlayerMP player = getCommandSenderAsPlayer(sender);
++            
++            // WorldRandomEventのインスタンスをその場で生成して対応するイベントを実行
++            WorldRandomEvent randomEvent = new WorldRandomEvent(player.worldObj);
++            
++            sender.sendChatToPlayer("Triggering random event: " + eventId);
++            
++            switch (eventId) {
++                case 0: randomEvent.event0(player); break;
++                case 1: randomEvent.event1(player); break;
++                case 2: randomEvent.event2(player); break;
++                case 3: randomEvent.event3(player); break;
++                case 4: randomEvent.event4(player); break;
++                case 5: randomEvent.event5(player); break;
++                case 6: randomEvent.event6(player); break;
++                case 7: randomEvent.event7(player); break;
++                case 8: randomEvent.event8(player); break;
++                case 9: randomEvent.event9(player); break;
++                case 10: randomEvent.event10(player); break;
++                case 11: randomEvent.event11(player); break;
++                case 12: randomEvent.event12(player); break;
++                case 13: randomEvent.event13(player); break;
++                case 14: randomEvent.event14(player); break;
++                case 15: randomEvent.event15(player); break;
++                default:
++                    sender.sendChatToPlayer("Unknown event ID.");
++                    break;
++            }
++        } catch (NumberFormatException e) {
++            sender.sendChatToPlayer("Invalid event ID. Must be an integer between 0 and 15.");
++        }
++    }
++
++    @Override
++    public List addTabCompletionOptions(ICommandSender sender, String[] args) {
++        // コマンド入力時のTabキーによる自動補完機能を提供
++        return args.length == 1 ? getListOfStringsMatchingLastWord(args, new String[] {
++            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"
++        }) : null;
++    }
++}
+--- /dev/null
++++ net/minecraft/src/Render____.java
+@@ -1,0 +1,12 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class Render____ extends RenderLiving {
++	protected Model____ modelBipedMain;
++
++	public Render____(Model____ var1, float var2) {
++		super(var1, var2);
++		this.modelBipedMain = var1;
++	}
++}
+--- net/minecraft/src/BiomeGenBase.java
++++ net/minecraft/src/BiomeGenBase.java
+@@ -61,6 +61,12 @@
+ 		this.spawnableCreatureList.add(new SpawnListEntry(EntityPig.class, 10, 4, 4));
+ 		this.spawnableCreatureList.add(new SpawnListEntry(EntityChicken.class, 10, 4, 4));
+ 		this.spawnableCreatureList.add(new SpawnListEntry(EntityCow.class, 8, 4, 4));
++
++		this.spawnableCreatureList.add(new SpawnListEntry(EntityUU.class, 8, 1, 4));
++		this.spawnableCreatureList.add(new SpawnListEntry(EntityJJ.class, 8, 1, 4));
++		this.spawnableCreatureList.add(new SpawnListEntry(Entity____.class, 8, 1, 4));
++		this.spawnableCreatureList.add(new SpawnListEntry(EntityThatThing.class, 8, 1, 4));
++
+ 		this.spawnableMonsterList.add(new SpawnListEntry(EntitySpider.class, 10, 4, 4));
+ 		this.spawnableMonsterList.add(new SpawnListEntry(EntityZombie.class, 10, 4, 4));
+ 		this.spawnableMonsterList.add(new SpawnListEntry(EntitySkeleton.class, 10, 4, 4));
+--- net/minecraft/src/EnumOptions.java
++++ net/minecraft/src/EnumOptions.java
+@@ -32,7 +32,8 @@
+ 	CHAT_SCALE("options.chat.scale", true, false),
+ 	CHAT_WIDTH("options.chat.width", true, false),
+ 	CHAT_HEIGHT_FOCUSED("options.chat.height.focused", true, false),
+-	CHAT_HEIGHT_UNFOCUSED("options.chat.height.unfocused", true, false);
++	CHAT_HEIGHT_UNFOCUSED("options.chat.height.unfocused", true, false),
++	GLITCH_EFFECT("options.glitchEffect", false, false);
+ 
+ 	private final boolean enumFloat;
+ 	private final boolean enumBoolean;
+--- /dev/null
++++ net/minecraft/src/EntityUnfounded.java
+@@ -1,0 +1,123 @@
++package net.minecraft.src;
++
++public abstract class EntityUnfounded extends EntityCreature implements IMob {
++	public EntityUnfounded(World var1) {
++		super(var1);
++		this.experienceValue = 5;
++	}
++
++	public void onLivingUpdate() {
++		super.onLivingUpdate();
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++	}
++
++	protected Entity findPlayerToAttack() {
++		EntityPlayer var1 = this.worldObj.getClosestVulnerablePlayerToEntity(this, 64.0D);
++		return var1 != null && this.canEntityBeSeen(var1) ? var1 : null;
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		if(this.isEntityInvulnerable()) {
++			return false;
++		} else if(super.attackEntityFrom(var1, var2)) {
++			Entity var3 = var1.getEntity();
++			if(this.riddenByEntity != var3 && this.ridingEntity != var3) {
++				if(var3 != this) {
++					this.entityToAttack = var3;
++				}
++
++				return true;
++			} else {
++				return true;
++			}
++		} else {
++			return false;
++		}
++	}
++
++	public boolean attackEntityAsMob(Entity var1) {
++		int var2 = this.getAttackStrength(var1);
++		if(this.isPotionActive(Potion.damageBoost)) {
++			var2 += 3 << this.getActivePotionEffect(Potion.damageBoost).getAmplifier();
++		}
++
++		if(this.isPotionActive(Potion.weakness)) {
++			var2 -= 2 << this.getActivePotionEffect(Potion.weakness).getAmplifier();
++		}
++
++		int var3 = 0;
++		if(var1 instanceof EntityLiving) {
++			var2 += EnchantmentHelper.getEnchantmentModifierLiving(this, (EntityLiving)var1);
++			var3 += EnchantmentHelper.getKnockbackModifier(this, (EntityLiving)var1);
++		}
++
++		boolean var4 = var1.attackEntityFrom(DamageSource.causeMobDamage(this), var2);
++		if(var4) {
++			if(var3 > 0) {
++				var1.addVelocity((double)(-MathHelper.sin(this.rotationYaw * (float)Math.PI / 180.0F) * (float)var3 * 0.5F), 0.1D, (double)(MathHelper.cos(this.rotationYaw * (float)Math.PI / 180.0F) * (float)var3 * 0.5F));
++				this.motionX *= 0.6D;
++				this.motionZ *= 0.6D;
++			}
++
++			int var5 = EnchantmentHelper.getFireAspectModifier(this);
++			if(var5 > 0) {
++				var1.setFire(var5 * 4);
++			}
++
++			if(var1 instanceof EntityLiving) {
++				EnchantmentThorns.func_92096_a(this, (EntityLiving)var1, this.rand);
++			}
++		}
++
++		return var4;
++	}
++
++	protected void attackEntity(Entity var1, float var2) {
++		if(this.attackTime <= 0 && var2 < 2.0F && var1.boundingBox.maxY > this.boundingBox.minY && var1.boundingBox.minY < this.boundingBox.maxY) {
++			this.attackTime = 20;
++			this.attackEntityAsMob(var1);
++		}
++
++	}
++
++	public float getBlockPathWeight(int var1, int var2, int var3) {
++		return 0.5F - this.worldObj.getLightBrightness(var1, var2, var3);
++	}
++
++	protected boolean isValidLightLevel() {
++		int var1 = MathHelper.floor_double(this.posX);
++		int var2 = MathHelper.floor_double(this.boundingBox.minY);
++		int var3 = MathHelper.floor_double(this.posZ);
++		if(this.worldObj.getSavedLightValue(EnumSkyBlock.Sky, var1, var2, var3) > this.rand.nextInt(32)) {
++			return false;
++		} else {
++			int var4 = this.worldObj.getBlockLightValue(var1, var2, var3);
++			if(this.worldObj.isThundering()) {
++				int var5 = this.worldObj.skylightSubtracted;
++				this.worldObj.skylightSubtracted = 10;
++				var4 = this.worldObj.getBlockLightValue(var1, var2, var3);
++				this.worldObj.skylightSubtracted = var5;
++			}
++
++			return var4 <= this.rand.nextInt(8);
++		}
++	}
++
++	public int getAttackStrength(Entity var1) {
++		return 2;
++	}
++
++	@Override
++	public boolean getCanSpawnHere() {
++		int x = MathHelper.floor_double(this.posX);
++		int y = MathHelper.floor_double(this.boundingBox.minY);
++		int z = MathHelper.floor_double(this.posZ);
++		return this.worldObj.checkNoEntityCollision(this.boundingBox) && 
++		       this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox).isEmpty() && 
++		       !this.worldObj.isAnyLiquid(this.boundingBox) &&
++		       this.worldObj.doesBlockHaveSolidTopSurface(x, y - 1, z);
++	}
++}
+--- /dev/null
++++ net/minecraft/src/EntityThatThing.java
+@@ -1,0 +1,30 @@
++package net.minecraft.src;
++
++public class EntityThatThing extends EntityUnfounded {
++
++	public EntityThatThing(World var1) {
++		super(var1);
++		this.texture = "/addmob/ThatThing.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer player = this.worldObj.getClosestPlayerToEntity(this, 60.0F);
++			if(player != null) {
++				if(player.getDistanceToEntity(this) < 10) {
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 2323;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/WorldGenSign.java
+@@ -1,0 +1,15 @@
++package net.minecraft.src;
++
++public class WorldGenSign {
++	public boolean generate(World var1, int var2, int var3, int var4, String var5, String var6, String var7, String var8) {
++		var1.setBlock(var2, var3, var4, Block.signPost.blockID);
++		TileEntitySign var9 = new TileEntitySign();
++		var9.xCoord = var2;
++		var9.yCoord = var3;
++		var9.zCoord = var4;
++		var9.worldObj = var1;
++		var9.signText = new String[]{"\u00A74" + var5, "\u00A74" + var6, "\u00A74" + var7, "\u00A74" + var8};
++		var1.setBlockTileEntity(var2, var3, var4, var9);
++		return true;
++	}
++}
+--- net/minecraft/src/GuiSlot.java
++++ net/minecraft/src/GuiSlot.java
+@@ -223,6 +223,13 @@
+ 		this.bindAmountScrolled();
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glDisable(GL11.GL_FOG);
++		
++		if (ShaderHelper.getBackgroundNoiseProgramId() == 0) {
++			ShaderHelper.initBackgroundNoise("/unfounded.vert", "/unfounded_background.frag");
++		}
++		float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++		ShaderHelper.useBackgroundNoiseShader(time);
++		
+ 		Tessellator var18 = Tessellator.instance;
+ 		this.mc.renderEngine.bindTexture("/gui/background.png");
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+@@ -234,6 +241,9 @@
+ 		var18.addVertexWithUV((double)this.right, (double)this.top, 0.0D, (double)((float)this.right / var17), (double)((float)(this.top + (int)this.amountScrolled) / var17));
+ 		var18.addVertexWithUV((double)this.left, (double)this.top, 0.0D, (double)((float)this.left / var17), (double)((float)(this.top + (int)this.amountScrolled) / var17));
+ 		var18.draw();
++		
++		ShaderHelper.releaseShader();
++		ShaderHelper.captureBackground(this.mc.displayWidth, this.mc.displayHeight);
+ 		var9 = this.width / 2 - 92 - 16;
+ 		var10 = this.top + 4 - (int)this.amountScrolled;
+ 		if(this.field_77243_s) {
+@@ -273,6 +283,7 @@
+ 		byte var19 = 4;
+ 		this.overlayBackground(0, this.top, 255, 255);
+ 		this.overlayBackground(this.bottom, this.height, 255, 255);
++		ShaderHelper.captureBackground(this.mc.displayWidth, this.mc.displayHeight);
+ 		GL11.glEnable(GL11.GL_BLEND);
+ 		GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+ 		GL11.glDisable(GL11.GL_ALPHA_TEST);
+@@ -345,6 +356,12 @@
+ 	}
+ 
+ 	private void overlayBackground(int var1, int var2, int var3, int var4) {
++		if (ShaderHelper.getBackgroundNoiseProgramId() == 0) {
++			ShaderHelper.initBackgroundNoise("/unfounded.vert", "/unfounded_background.frag");
++		}
++		float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++		ShaderHelper.useBackgroundNoiseShader(time);
++		
+ 		Tessellator var5 = Tessellator.instance;
+ 		this.mc.renderEngine.bindTexture("/gui/background.png");
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+@@ -357,5 +374,7 @@
+ 		var5.addVertexWithUV((double)this.width, (double)var1, 0.0D, (double)((float)this.width / var6), (double)((float)var1 / var6));
+ 		var5.addVertexWithUV(0.0D, (double)var1, 0.0D, 0.0D, (double)((float)var1 / var6));
+ 		var5.draw();
++		
++		ShaderHelper.releaseShader();
+ 	}
+ }
+--- /dev/null
++++ net/minecraft/src/RenderUU.java
+@@ -1,0 +1,12 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class RenderUU extends RenderLiving {
++	protected ModelUU modelBipedMain;
++
++	public RenderUU(ModelUU var1, float var2) {
++		super(var1, var2);
++		this.modelBipedMain = var1;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/EntityUU.java
+@@ -1,0 +1,30 @@
++package net.minecraft.src;
++
++public class EntityUU extends EntityUnfounded {
++
++	public EntityUU(World var1) {
++		super(var1);
++		this.texture = "/addmob/UU.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer player = this.worldObj.getClosestPlayerToEntity(this, 60.0F);
++			if(player != null) {
++				if(player.getDistanceToEntity(this) < 10) {
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- net/minecraft/src/Item.java
++++ net/minecraft/src/Item.java
+@@ -172,6 +172,7 @@
+ 	public static Item recordWard = (new ItemRecord(2009, "ward")).setUnlocalizedName("record");
+ 	public static Item record11 = (new ItemRecord(2010, "11")).setUnlocalizedName("record");
+ 	public static Item recordWait = (new ItemRecord(2011, "wait")).setUnlocalizedName("record");
++	public static Item glitchItem = (new ItemGlitch(153)).setUnlocalizedName("glitchItem").setCreativeTab(CreativeTabs.tabMisc);
+ 	public final int itemID;
+ 	protected int maxStackSize = 64;
+ 	private int maxDamage = 0;
+--- /dev/null
++++ net/minecraft/src/EntityLengthFix.java
+@@ -1,0 +1,31 @@
++package net.minecraft.src;
++
++public class EntityLengthFix extends EntityUnfoundedLong {
++	public EntityLengthFix(World var1) {
++		super(var1);
++		this.texture = "/addmob/LengthFix.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer playerMP = this.worldObj.getClosestPlayerToEntity(this, 64.0F);
++			if(playerMP != null) {
++				if(playerMP.getDistanceToEntity(this) < 36.0F) {
++					for(int i = 0; i < 4; i++) {
++						super.onUpdate();
++					}
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 1092;
++	}
++}
+--- /dev/null
++++ net/minecraft/src/WorldRandomEvent.java
+@@ -1,0 +1,257 @@
++package net.minecraft.src;
++
++import java.util.List;
++import java.util.Random;
++
++public class WorldRandomEvent {
++	public World worldObj;
++	public boolean[] timerS;
++	public int[] timer;
++
++	public WorldRandomEvent(World world) {
++		this.worldObj = world;
++		this.timerS = new boolean[20];
++		this.timer = new int[20];
++	}
++
++	public void event0(EntityPlayerMP playerSP) {
++		int startX = (int)Math.floor(playerSP.posX) - 2;
++		int startY = (int)Math.floor(playerSP.posY) - 1;
++		int startZ = (int)Math.floor(playerSP.posZ) - 3;
++
++		WorldGenLongFix.saveBackup(this.worldObj, startX, startY, startZ);
++		WorldGenLongFix.savePlayerPos(playerSP.posX, playerSP.posY, playerSP.posZ);
++
++		(new WorldGenLongFix()).generate(this.worldObj, this.worldObj.rand, startX, startY, startZ);
++
++		playerSP.setPositionAndUpdate((double)startX + 2.5D, (double)startY + 1.0D, (double)startZ + 3.5D);
++
++		EntityNINI entity = new EntityNINI(this.worldObj);
++		entity.setLocationAndAngles((double)startX + 53.5D, (double)startY + 1.0D, (double)startZ + 3.5D, 0.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++	}
++
++	public void event1(EntityPlayerMP playerSP) {
++		int startX = (int)Math.floor(playerSP.posX) - 2;
++		int startY = (int)Math.floor(playerSP.posY) - 1;
++		int startZ = (int)Math.floor(playerSP.posZ) - 3;
++
++		WorldGenLongFix.saveBackup(this.worldObj, startX, startY, startZ);
++		WorldGenLongFix.savePlayerPos(playerSP.posX, playerSP.posY, playerSP.posZ);
++
++		(new WorldGenLongFix()).generate(this.worldObj, this.worldObj.rand, startX, startY, startZ);
++
++		playerSP.setPositionAndUpdate((double)startX + 2.5D, (double)startY + 1.0D, (double)startZ + 3.5D);
++
++		EntityLengthFix entity = new EntityLengthFix(this.worldObj);
++		entity.setLocationAndAngles((double)startX + 53.5D, (double)startY + 1.0D, (double)startZ + 3.5D, 0.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++	}
++
++	public void event2(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet81Sound("/sounds/event2.wav"));
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double pitch = Math.toRadians(playerSP.rotationPitch);
++		double spawnX = playerSP.posX - Math.sin(yaw) * Math.cos(pitch) * 2.0D;
++		double spawnY = playerSP.posY - Math.sin(pitch) * 2.0D;
++		double spawnZ = playerSP.posZ + Math.cos(yaw) * Math.cos(pitch) * 2.0D;
++
++		Entity4466 entity = new Entity4466(this.worldObj);
++		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(2));
++	}
++
++	public void event3(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(3));
++	}
++
++	public void event4(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(4));
++	}
++
++	public void event5(EntityPlayerMP playerSP) {
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(5));
++	}
++
++	public void event6(EntityPlayerMP playerSP) {
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double pitch = Math.toRadians(playerSP.rotationPitch);
++		double spawnX = playerSP.posX - Math.sin(yaw) * Math.cos(pitch) * 5.0D;
++		double spawnY = playerSP.posY - Math.sin(pitch) * 5.0D;
++		double spawnZ = playerSP.posZ + Math.cos(yaw) * Math.cos(pitch) * 5.0D;
++
++		EntityPublicVoid entity = new EntityPublicVoid(this.worldObj);
++		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++	}
++
++	public void event7(EntityPlayerMP playerSP) {
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double pitch = Math.toRadians(playerSP.rotationPitch);
++		double spawnX = playerSP.posX - Math.sin(yaw) * Math.cos(pitch) * 5.0D;
++		double spawnY = playerSP.posY - Math.sin(pitch) * 5.0D;
++		double spawnZ = playerSP.posZ + Math.cos(yaw) * Math.cos(pitch) * 5.0D;
++
++		EntityBinary444 entity = new EntityBinary444(this.worldObj);
++		entity.setLocationAndAngles(spawnX, spawnY, spawnZ, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++	}
++
++	public void event8(EntityPlayerMP playerSP) {
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double pitch = Math.toRadians(playerSP.rotationPitch);
++		double spawnX = playerSP.posX - Math.sin(yaw) * Math.cos(pitch) * 5.0D;
++		double spawnZ = playerSP.posZ + Math.cos(yaw) * Math.cos(pitch) * 5.0D;
++		
++		int x = MathHelper.floor_double(spawnX);
++		int z = MathHelper.floor_double(spawnZ);
++		int y = this.worldObj.getHeightValue(x, z);
++
++		EntityRomanesco888 entity = new EntityRomanesco888(this.worldObj);
++		entity.setLocationAndAngles((double)x + 0.5D, (double)y, (double)z + 0.5D, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++	}
++
++	public void event9(EntityPlayerMP playerSP) {
++		double yaw = Math.toRadians(playerSP.rotationYaw);
++		double pitch = Math.toRadians(playerSP.rotationPitch);
++		double spawnX = playerSP.posX - Math.sin(yaw) * Math.cos(pitch) * 12.0D;
++		double spawnZ = playerSP.posZ + Math.cos(yaw) * Math.cos(pitch) * 12.0D;
++		
++		int x = MathHelper.floor_double(spawnX);
++		int z = MathHelper.floor_double(spawnZ);
++		int y = this.worldObj.getHeightValue(x, z);
++
++		EntityNoise entity = new EntityNoise(this.worldObj);
++		entity.setLocationAndAngles((double)x + 0.5D, (double)y, (double)z + 0.5D, playerSP.rotationYaw + 180.0F, 0.0F);
++		this.worldObj.spawnEntityInWorld(entity);
++
++		playerSP.playerNetServerHandler.sendPacketToPlayer(new Packet80Event(9));
++	}
++
++	public void event10(EntityPlayerMP playerSP) {
++	}
++
++	public void event11(EntityPlayerMP playerSP) {
++	}
++
++	public void event12(EntityPlayerMP playerSP) {
++	}
++
++	public void event13(EntityPlayerMP playerSP) {
++	}
++
++	public void event14(EntityPlayerMP playerSP) {
++	}
++
++	public void event15(EntityPlayerMP playerSP) {
++	}
++
++	public void tickEvents() {
++		List<EntityPlayerMP> playerSPList = this.worldObj.playerEntities;
++		if(!playerSPList.isEmpty()) {
++			EntityPlayerMP playerSP = playerSPList.get(new Random().nextInt(playerSPList.size()));
++			switch(new Random().nextInt(20 * 60 * 30)) {
++			case 0:
++				this.event0(playerSP);
++				break;
++			case 1:
++				this.event1(playerSP);
++				break;
++			case 2:
++				this.event2(playerSP);
++				break;
++			case 3:
++				this.event3(playerSP);
++				break;
++			case 4:
++				this.event4(playerSP);
++				break;
++			case 5:
++				this.event5(playerSP);
++				break;
++			case 6:
++				this.event6(playerSP);
++				break;
++			case 7:
++				this.event7(playerSP);
++				break;
++			case 8:
++				this.event8(playerSP);
++				break;
++			case 9:
++				this.event9(playerSP);
++				break;
++			case 10:
++				this.event10(playerSP);
++				break;
++			case 11:
++				this.event11(playerSP);
++				break;
++			case 12:
++				this.event12(playerSP);
++				break;
++			case 13:
++				this.event13(playerSP);
++				break;
++			case 14:
++				this.event14(playerSP);
++				break;
++			case 15:
++				this.event15(playerSP);
++				break;
++			}
++			if(this.timerS[0]) {
++				this.timer[0]++;
++				if(this.timer[0] >= 20 * 60 * 6) {
++					this.timerS[0] = false;
++					this.timer[0] = 0;
++				}
++			}
++			if(this.timerS[1]) {
++				this.timer[1]++;
++				if(this.timer[1] >= 20 * 8) {
++					this.timerS[1] = false;
++					this.timer[1] = 0;
++				}
++			}
++			if(this.timerS[2]) {
++				this.timer[2]++;
++				if(this.timer[2] >= 20 * 8) {
++					this.timerS[2] = false;
++					this.timer[2] = 0;
++				}
++			}
++			if(this.timerS[3]) {
++				this.timer[3]++;
++				if(this.timer[3] >= 20 * 8) {
++					this.timerS[3] = false;
++					this.timer[3] = 0;
++				}
++			}
++			if(this.timerS[4]) {
++				this.timer[4]++;
++				if(this.timer[4] >= 20 * 8) {
++					this.timerS[4] = false;
++					this.timer[4] = 0;
++				}
++			}
++			if(this.timerS[5]) {
++				this.timer[5]++;
++				if(this.timer[5] >= 20 * 8) {
++					this.timerS[5] = false;
++					this.timer[5] = 0;
++				}
++			}
++			if(this.timerS[6]) {
++				this.timer[6]++;
++				if(this.timer[6] >= 20 * 8) {
++					this.timerS[6] = false;
++					this.timer[6] = 0;
++				}
++			}
++		}
++	}
++}
+--- /dev/null
++++ net/minecraft/src/ModelThatThing.java
+@@ -1,0 +1,189 @@
++package net.minecraft.src;
++
++public class ModelThatThing extends ModelBase {
++	public ModelRenderer bipedHead;
++	public ModelRenderer bipedBody;
++	public ModelRenderer bipedLeftArm0;
++	public ModelRenderer bipedLeftArm1;
++	public ModelRenderer bipedLeftArm2;
++	public ModelRenderer bipedRightArm0;
++	public ModelRenderer bipedRightArm1;
++	public ModelRenderer bipedRightArm2;
++	public ModelRenderer bipedLeftLeg;
++	public ModelRenderer bipedRightLeg;
++
++	public ModelThatThing() {
++		this(0.0F);
++	}
++
++	public ModelThatThing(float var1) {
++		this(var1, 0.0F);
++	}
++
++	public ModelThatThing(float var1, float var2) {
++		byte var3 = 80;
++		byte var4 = 80;
++		this.bipedHead = new ModelRenderer(this, 24, 0).setTextureSize(var3, var4);
++		this.bipedHead.addBox(-4.0F, -10.0F, -4.0F, 8, 10, 8, var1);
++		this.bipedHead.setRotationPoint(0.0F, -17.0F + var2, 0.0F);
++		this.bipedBody = new ModelRenderer(this, 0, 0).setTextureSize(var3, var4);
++		this.bipedBody.addBox(-4.0F, -12.5F, -2.0F, 8, 25, 4, var1);
++		this.bipedBody.setRotationPoint(0.0F, -4.5F + var2, 0.0F);
++		this.bipedLeftArm0 = new ModelRenderer(this, 0, 49).setTextureSize(var3, var4);
++		this.bipedLeftArm0.mirror = true;
++		this.bipedLeftArm0.addBox(-1.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedLeftArm0.setRotationPoint(6.0F, -2.0F + var2, 0.0F);
++		this.bipedLeftArm1 = new ModelRenderer(this, 16, 38).setTextureSize(var3, var4);
++		this.bipedLeftArm1.mirror = true;
++		this.bipedLeftArm1.addBox(-1.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedLeftArm1.setRotationPoint(6.0F, -9.0F + var2, 0.0F);
++		this.bipedLeftArm2 = new ModelRenderer(this, 40, 18).setTextureSize(var3, var4);
++		this.bipedLeftArm2.mirror = true;
++		this.bipedLeftArm2.addBox(-1.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedLeftArm2.setRotationPoint(6.0F, -15.0F + var2, 0.0F);
++		this.bipedRightArm0 = new ModelRenderer(this, 32, 38).setTextureSize(var3, var4);
++		this.bipedRightArm0.addBox(-3.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedRightArm0.setRotationPoint(-6.0F, -2.0F + var2, 0.0F);
++		this.bipedRightArm1 = new ModelRenderer(this, 48, 34).setTextureSize(var3, var4);
++		this.bipedRightArm1.addBox(-3.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedRightArm1.setRotationPoint(-6.0F, -9.0F + var2, 0.0F);
++		this.bipedRightArm2 = new ModelRenderer(this, 48, 50).setTextureSize(var3, var4);
++		this.bipedRightArm2.addBox(-3.0F, -2.0F, -2.0F, 4, 12, 4, var1);
++		this.bipedRightArm2.setRotationPoint(-6.0F, -15.0F + var2, 0.0F);
++		this.bipedLeftLeg = new ModelRenderer(this, 24, 18).setTextureSize(var3, var4);
++		this.bipedLeftLeg.mirror = true;
++		this.bipedLeftLeg.addBox(-2.0F, -2.0F, -2.0F, 4, 16, 4, var1);
++		this.bipedLeftLeg.setRotationPoint(2.0F, 10.0F + var2, 0.0F);
++		this.bipedRightLeg = new ModelRenderer(this, 0, 29).setTextureSize(var3, var4);
++		this.bipedRightLeg.addBox(-2.0F, -2.0F, -2.0F, 4, 16, 4, var1);
++		this.bipedRightLeg.setRotationPoint(-2.0F, 10.0F + var2, 0.0F);
++	}
++
++	public void render(Entity entity, float var1, float var2, float var3, float var4, float var5, float var6) {
++		this.setRotationAngles(var1, var2, var3, var4, var5, var6);
++		this.rotateGT();
++		this.bipedHead.render(var6);
++		this.bipedBody.render(var6);
++		this.bipedRightArm0.render(var6);
++		this.bipedRightArm1.render(var6);
++		this.bipedRightArm2.render(var6);
++		this.bipedLeftArm0.render(var6);
++		this.bipedLeftArm1.render(var6);
++		this.bipedLeftArm2.render(var6);
++		this.bipedRightLeg.render(var6);
++		this.bipedLeftLeg.render(var6);
++	}
++
++	public void setRotationAngles(float var1, float var2, float var3, float var4, float var5, float var6) {
++		this.bipedHead.rotateAngleY = var4 / (180.0F / (float)Math.PI);
++		this.bipedHead.rotateAngleX = var5 / (180.0F / (float)Math.PI);
++		this.bipedRightArm0.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 2.0F * var2 * 0.5F;
++		this.bipedRightArm1.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 2.0F * var2 * 0.5F;
++		this.bipedRightArm2.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 2.0F * var2 * 0.5F;
++		this.bipedLeftArm0.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 2.0F * var2 * 0.5F;
++		this.bipedLeftArm1.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 2.0F * var2 * 0.5F;
++		this.bipedLeftArm2.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 2.0F * var2 * 0.5F;
++		this.bipedRightArm0.rotateAngleZ = 0.0F;
++		this.bipedRightArm1.rotateAngleZ = 0.0F;
++		this.bipedRightArm2.rotateAngleZ = 0.0F;
++		this.bipedLeftArm0.rotateAngleZ = 0.0F;
++		this.bipedLeftArm1.rotateAngleZ = 0.0F;
++		this.bipedLeftArm2.rotateAngleZ = 0.0F;
++		this.bipedRightLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F) * 1.4F * var2;
++		this.bipedLeftLeg.rotateAngleX = MathHelper.cos(var1 * 0.6662F + (float)Math.PI) * 1.4F * var2;
++		this.bipedRightLeg.rotateAngleY = 0.0F;
++		this.bipedLeftLeg.rotateAngleY = 0.0F;
++		if(this.isRiding) {
++			this.bipedRightArm0.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedRightArm1.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedRightArm2.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedLeftArm0.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedLeftArm1.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedLeftArm2.rotateAngleX += (float)Math.PI * -0.2F;
++			this.bipedRightLeg.rotateAngleX = (float)Math.PI * -0.4F;
++			this.bipedLeftLeg.rotateAngleX = (float)Math.PI * -0.4F;
++			this.bipedRightLeg.rotateAngleY = (float)Math.PI * 0.1F;
++			this.bipedLeftLeg.rotateAngleY = (float)Math.PI * -0.1F;
++		}
++
++		this.bipedRightArm0.rotateAngleY = 0.0F;
++		this.bipedRightArm1.rotateAngleY = 0.0F;
++		this.bipedRightArm2.rotateAngleY = 0.0F;
++		this.bipedLeftArm0.rotateAngleY = 0.0F;
++		this.bipedLeftArm1.rotateAngleY = 0.0F;
++		this.bipedLeftArm2.rotateAngleY = 0.0F;
++		if(this.onGround > -9990.0F) {
++			float var7 = this.onGround;
++			this.bipedBody.rotateAngleY = MathHelper.sin(MathHelper.sqrt_float(var7) * (float)Math.PI * 2.0F) * 0.2F;
++			this.bipedRightArm0.rotationPointZ = MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm0.rotationPointX = -MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm1.rotationPointZ = MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm1.rotationPointX = -MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm2.rotationPointZ = MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm2.rotationPointX = -MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm0.rotationPointZ = -MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm0.rotationPointX = MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm1.rotationPointZ = -MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm1.rotationPointX = MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm2.rotationPointZ = -MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm2.rotationPointX = MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm0.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedRightArm1.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedRightArm2.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm0.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm0.rotateAngleX += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm1.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm1.rotateAngleX += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm2.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm2.rotateAngleX += this.bipedBody.rotateAngleY;
++			var7 = 1.0F - this.onGround;
++			var7 *= var7;
++			var7 *= var7;
++			var7 = 1.0F - var7;
++			float var8 = MathHelper.sin(var7 * (float)Math.PI);
++			float var9 = MathHelper.sin(this.onGround * (float)Math.PI) * -(this.bipedHead.rotateAngleX - 0.7F) * (12.0F / 16.0F);
++			this.bipedRightArm0.rotateAngleX = (float)((double)this.bipedRightArm0.rotateAngleX - ((double)var8 * 1.2D + (double)var9));
++			this.bipedRightArm0.rotateAngleY += this.bipedBody.rotateAngleY * 2.0F;
++			this.bipedRightArm0.rotateAngleZ = MathHelper.sin(this.onGround * (float)Math.PI) * -0.4F;
++			this.bipedRightArm1.rotateAngleX = (float)((double)this.bipedRightArm0.rotateAngleX - ((double)var8 * 1.2D + (double)var9));
++			this.bipedRightArm1.rotateAngleY += this.bipedBody.rotateAngleY * 2.0F;
++			this.bipedRightArm1.rotateAngleZ = MathHelper.sin(this.onGround * (float)Math.PI) * -0.4F;
++			this.bipedRightArm2.rotateAngleX = (float)((double)this.bipedRightArm0.rotateAngleX - ((double)var8 * 1.2D + (double)var9));
++			this.bipedRightArm2.rotateAngleY += this.bipedBody.rotateAngleY * 2.0F;
++			this.bipedRightArm2.rotateAngleZ = MathHelper.sin(this.onGround * (float)Math.PI) * -0.4F;
++		}
++
++		this.bipedBody.rotateAngleX = 0.0F;
++		this.bipedRightLeg.rotationPointZ = 0.0F;
++		this.bipedLeftLeg.rotationPointZ = 0.0F;
++		this.bipedRightArm0.rotateAngleZ += MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm1.rotateAngleZ += MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm2.rotateAngleZ += MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm0.rotateAngleZ -= MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm1.rotateAngleZ -= MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm1.rotateAngleZ -= MathHelper.cos(var3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm0.rotateAngleX += MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedRightArm1.rotateAngleX += MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedRightArm2.rotateAngleX += MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedLeftArm0.rotateAngleX -= MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedLeftArm1.rotateAngleX -= MathHelper.sin(var3 * 0.067F) * 0.05F;
++		this.bipedLeftArm2.rotateAngleX -= MathHelper.sin(var3 * 0.067F) * 0.05F;
++	}
++
++	public void rotateGT() {
++		float rotateRA = 1.5708F;
++		float rotateLA = -1.5708F;
++		this.bipedRightArm1.rotateAngleZ = 0.0F + rotateRA;
++		this.bipedLeftArm1.rotateAngleZ = 0.0F + rotateLA;
++		this.bipedRightArm1.rotateAngleZ += MathHelper.cos(rotateRA * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm1.rotateAngleZ -= MathHelper.cos(rotateLA * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm1.rotateAngleX += MathHelper.sin(rotateRA * 0.067F) * 0.05F;
++		this.bipedLeftArm1.rotateAngleX -= MathHelper.sin(rotateLA * 0.067F) * 0.05F;
++		this.bipedRightArm2.rotateAngleZ = 0.0F + rotateRA;
++		this.bipedLeftArm2.rotateAngleZ = 0.0F + rotateLA;
++		this.bipedRightArm2.rotateAngleZ += MathHelper.cos(rotateRA * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm2.rotateAngleZ -= MathHelper.cos(rotateLA * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm2.rotateAngleX += MathHelper.sin(rotateRA * 0.067F) * 0.05F;
++		this.bipedLeftArm2.rotateAngleX -= MathHelper.sin(rotateLA * 0.067F) * 0.05F;
++	}
++}
+--- net/minecraft/src/Container.java
++++ net/minecraft/src/Container.java
+@@ -89,6 +89,64 @@
+ 	}
+ 
+ 	public ItemStack slotClick(int var1, int var2, int var3, EntityPlayer var4) {
++		if (var1 >= 0 && var1 < this.inventorySlots.size()) {
++			Slot slot = (Slot)this.inventorySlots.get(var1);
++			if (slot != null && slot.getHasStack() && slot.getStack() != null && slot.getStack().itemID == Item.glitchItem.itemID) {
++				// サーバー側 (EntityPlayerMP) でのみクラッシュとチェスト消去を処理する
++				// これによりクライアントがパケットを送る前にクラッシュしてサーバー処理が走らない問題を解決します
++				if (var4 instanceof EntityPlayerMP) {
++					IInventory inventory = slot.inventory;
++					// チェストGUIを開いている間なら、プレイヤーインベントリ側のスロットのクリックでも対象チェストを消去する
++					if (this instanceof ContainerChest) {
++						inventory = ((ContainerChest)this).getLowerChestInventory();
++					}
++
++					World serverWorld = null;
++
++					if (inventory instanceof TileEntityChest) {
++						TileEntityChest chest = (TileEntityChest)inventory;
++						World world = chest.worldObj;
++						if (world != null) {
++							world.setBlock(chest.xCoord, chest.yCoord, chest.zCoord, 0, 0, 2);
++							serverWorld = world;
++						}
++					} else if (inventory instanceof InventoryLargeChest) {
++						InventoryLargeChest largeChest = (InventoryLargeChest)inventory;
++						IInventory upper = largeChest.getUpperChest();
++						IInventory lower = largeChest.getLowerChest();
++						if (upper instanceof TileEntityChest) {
++							TileEntityChest chest = (TileEntityChest)upper;
++							World world = chest.worldObj;
++							if (world != null) {
++								world.setBlock(chest.xCoord, chest.yCoord, chest.zCoord, 0, 0, 2);
++								serverWorld = world;
++							}
++						}
++						if (lower instanceof TileEntityChest) {
++							TileEntityChest chest = (TileEntityChest)lower;
++							World world = chest.worldObj;
++							if (world != null) {
++								world.setBlock(chest.xCoord, chest.yCoord, chest.zCoord, 0, 0, 2);
++								serverWorld = world;
++							}
++						}
++					}
++
++					// ディスクへの非同期保存スレッドの完了を待機して、セーブが確実に完了してからクラッシュさせます
++					if (serverWorld instanceof WorldServer) {
++						try {
++							((WorldServer)serverWorld).saveAllChunks(true, (IProgressUpdate)null);
++							ThreadedFileIOBase.threadedIOInstance.waitForFinish();
++						} catch (Exception e) {
++							e.printStackTrace();
++						}
++					}
++
++					throw new ReportedException(new CrashReport("Corrupted item interaction detected", new Throwable("GlitchItem clicked")));
++				}
++			}
++		}
++
+ 		ItemStack var5 = null;
+ 		InventoryPlayer var6 = var4.inventory;
+ 		int var9;
+--- /dev/null
++++ net/minecraft/src/RenderNINI.java
+@@ -1,0 +1,18 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class RenderNINI extends RenderLiving {
++	protected ModelNINI modelNINIMain;
++	protected float size;
++
++	public RenderNINI(ModelNINI var1, float var2, float size) {
++		super(var1, var2);
++		this.modelNINIMain = var1;
++		this.size = size;
++	}
++
++	protected void preRenderCallback(EntityLiving var1, float var2) {
++		GL11.glScalef(this.size, this.size, this.size);
++	}
++}
+--- /dev/null
++++ net/minecraft/src/Entity____.java
+@@ -1,0 +1,30 @@
++package net.minecraft.src;
++
++public class Entity____ extends EntityUnfounded {
++
++	public Entity____(World var1) {
++		super(var1);
++		this.texture = "/addmob/____.png";
++		this.moveSpeed = 1.0F;
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++		if(!this.worldObj.isRemote) {
++			EntityPlayer player = this.worldObj.getClosestPlayerToEntity(this, 60.0F);
++			if(player != null) {
++				if(player.getDistanceToEntity(this) < 10) {
++					this.setDead();
++				}
++			}
++		}
++	}
++
++	public boolean attackEntityFrom(DamageSource var1, int var2) {
++		return false;
++	}
++
++	public int getMaxHealth() {
++		return 222;
++	}
++}
+--- net/minecraft/src/LoadingScreenRenderer.java
++++ net/minecraft/src/LoadingScreenRenderer.java
+@@ -76,6 +76,12 @@
+ 				GL11.glLoadIdentity();
+ 				GL11.glTranslatef(0.0F, 0.0F, -200.0F);
+ 				GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
++				if (ShaderHelper.getBackgroundNoiseProgramId() == 0) {
++					ShaderHelper.initBackgroundNoise("/unfounded.vert", "/unfounded_background.frag");
++				}
++				float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++				ShaderHelper.useBackgroundNoiseShader(time);
++
+ 				Tessellator var7 = Tessellator.instance;
+ 				this.mc.renderEngine.bindTexture("/gui/background.png");
+ 				float var8 = 32.0F;
+@@ -86,6 +92,8 @@
+ 				var7.addVertexWithUV((double)var5, 0.0D, 0.0D, (double)((float)var5 / var8), 0.0D);
+ 				var7.addVertexWithUV(0.0D, 0.0D, 0.0D, 0.0D, 0.0D);
+ 				var7.draw();
++
++				ShaderHelper.releaseShader();
+ 				if(var1 >= 0) {
+ 					byte var9 = 100;
+ 					byte var10 = 2;
+--- net/minecraft/src/Packet24MobSpawn.java
++++ net/minecraft/src/Packet24MobSpawn.java
+@@ -25,7 +25,7 @@
+ 
+ 	public Packet24MobSpawn(EntityLiving var1) {
+ 		this.entityId = var1.entityId;
+-		this.type = (byte)EntityList.getEntityID(var1);
++		this.type = EntityList.getEntityID(var1);
+ 		this.xPosition = var1.myEntitySize.multiplyBy32AndRound(var1.posX);
+ 		this.yPosition = MathHelper.floor_double(var1.posY * 32.0D);
+ 		this.zPosition = var1.myEntitySize.multiplyBy32AndRound(var1.posZ);
+--- /dev/null
++++ net/minecraft/src/RenderNoise.java
+@@ -1,0 +1,23 @@
++package net.minecraft.src;
++
++import net.minecraft.client.Minecraft;
++
++public class RenderNoise extends RenderLiving {
++	public RenderNoise(ModelBiped var1, float var2) {
++		super(var1, var2);
++	}
++
++	@Override
++	public void doRenderLiving(EntityLiving var1, double var2, double var4, double var6, float var8, float var9) {
++		float time = (float)(Minecraft.getSystemTime() % 1000000L) / 1000.0F;
++		float strength = ClientServerEvent.event9Strength;
++		
++		// Use special GLSL shader for color noise glitch effect
++		ShaderHelper.useNoiseEntityShader(time, strength);
++		
++		super.doRenderLiving(var1, var2, var4, var6, var8, var9);
++		
++		// Reset shader
++		ShaderHelper.releaseShader();
++	}
++}
+--- net/minecraft/src/GameSettings.java
++++ net/minecraft/src/GameSettings.java
+@@ -85,6 +85,7 @@
+ 	public int guiScale = 0;
+ 	public int particleSetting = 0;
+ 	public String language = "en_US";
++	public int glitchEffect = 2;
+ 
+ 	public GameSettings(Minecraft var1, File var2) {
+ 		this.mc = var1;
+@@ -249,6 +250,10 @@
+ 			this.showCape = !this.showCape;
+ 		}
+ 
++		if(var1 == EnumOptions.GLITCH_EFFECT) {
++			this.glitchEffect = (this.glitchEffect + var2) % 3;
++		}
++
+ 		if(var1 == EnumOptions.TOUCHSCREEN) {
+ 			this.touchscreen = !this.touchscreen;
+ 		}
+@@ -319,6 +324,10 @@
+ 	public String getKeyBinding(EnumOptions var1) {
+ 		StringTranslate var2 = StringTranslate.getInstance();
+ 		String var3 = var2.translateKey(var1.getEnumString()) + ": ";
++		if (var1 == EnumOptions.GLITCH_EFFECT) {
++			String[] names = new String[]{"Off", "Weak", "Normal"};
++			return "Glitch Effect: " + names[this.glitchEffect];
++		}
+ 		if(var1.getEnumFloat()) {
+ 			float var5 = this.getOptionFloatValue(var1);
+ 			return var1 == EnumOptions.SENSITIVITY ? (var5 == 0.0F ? var3 + var2.translateKey("options.sensitivity.min") : (var5 == 1.0F ? var3 + var2.translateKey("options.sensitivity.max") : var3 + (int)(var5 * 200.0F) + "%")) : (var1 == EnumOptions.FOV ? (var5 == 0.0F ? var3 + var2.translateKey("options.fov.min") : (var5 == 1.0F ? var3 + var2.translateKey("options.fov.max") : var3 + (int)(70.0F + var5 * 40.0F))) : (var1 == EnumOptions.GAMMA ? (var5 == 0.0F ? var3 + var2.translateKey("options.gamma.min") : (var5 == 1.0F ? var3 + var2.translateKey("options.gamma.max") : var3 + "+" + (int)(var5 * 100.0F) + "%")) : (var1 == EnumOptions.CHAT_OPACITY ? var3 + (int)(var5 * 90.0F + 10.0F) + "%" : (var1 == EnumOptions.CHAT_HEIGHT_UNFOCUSED ? var3 + GuiNewChat.func_96130_b(var5) + "px" : (var1 == EnumOptions.CHAT_HEIGHT_FOCUSED ? var3 + GuiNewChat.func_96130_b(var5) + "px" : (var1 == EnumOptions.CHAT_WIDTH ? var3 + GuiNewChat.func_96128_a(var5) + "px" : (var5 == 0.0F ? var3 + var2.translateKey("options.off") : var3 + (int)(var5 * 100.0F) + "%")))))));
+@@ -519,6 +528,10 @@
+ 						this.chatWidth = this.parseFloat(var3[1]);
+ 					}
+ 
++					if(var3[0].equals("glitchEffect")) {
++						this.glitchEffect = Integer.parseInt(var3[1]);
++					}
++
+ 					for(int var4 = 0; var4 < this.keyBindings.length; ++var4) {
+ 						if(var3[0].equals("key_" + this.keyBindings[var4].keyDescription)) {
+ 							this.keyBindings[var4].keyCode = Integer.parseInt(var3[1]);
+@@ -568,6 +581,7 @@
+ 			var1.println("chatLinksPrompt:" + this.chatLinksPrompt);
+ 			var1.println("chatOpacity:" + this.chatOpacity);
+ 			var1.println("serverTextures:" + this.serverTextures);
++			var1.println("glitchEffect:" + this.glitchEffect);
+ 			var1.println("snooperEnabled:" + this.snooperEnabled);
+ 			var1.println("fullscreen:" + this.fullScreen);
+ 			var1.println("enableVsync:" + this.enableVsync);
+--- net/minecraft/src/GuiVideoSettings.java
++++ net/minecraft/src/GuiVideoSettings.java
+@@ -5,7 +5,7 @@
+ 	protected String screenTitle = "Video Settings";
+ 	private GameSettings guiGameSettings;
+ 	private boolean is64bit = false;
+-	private static EnumOptions[] videoOptions = new EnumOptions[]{EnumOptions.GRAPHICS, EnumOptions.RENDER_DISTANCE, EnumOptions.AMBIENT_OCCLUSION, EnumOptions.FRAMERATE_LIMIT, EnumOptions.ANAGLYPH, EnumOptions.VIEW_BOBBING, EnumOptions.GUI_SCALE, EnumOptions.ADVANCED_OPENGL, EnumOptions.GAMMA, EnumOptions.RENDER_CLOUDS, EnumOptions.PARTICLES, EnumOptions.USE_SERVER_TEXTURES, EnumOptions.USE_FULLSCREEN, EnumOptions.ENABLE_VSYNC};
++	private static EnumOptions[] videoOptions = new EnumOptions[]{EnumOptions.GRAPHICS, EnumOptions.RENDER_DISTANCE, EnumOptions.AMBIENT_OCCLUSION, EnumOptions.FRAMERATE_LIMIT, EnumOptions.ANAGLYPH, EnumOptions.VIEW_BOBBING, EnumOptions.GUI_SCALE, EnumOptions.ADVANCED_OPENGL, EnumOptions.GAMMA, EnumOptions.RENDER_CLOUDS, EnumOptions.PARTICLES, EnumOptions.USE_SERVER_TEXTURES, EnumOptions.USE_FULLSCREEN, EnumOptions.ENABLE_VSYNC, EnumOptions.GLITCH_EFFECT};
+ 
+ 	public GuiVideoSettings(GuiScreen var1, GameSettings var2) {
+ 		this.parentGuiScreen = var1;
