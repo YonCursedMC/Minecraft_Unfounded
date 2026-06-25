@@ -556,7 +556,7 @@
  	public Object call() {
 --- net/minecraft/src/ChunkProviderGenerate.java
 +++ net/minecraft/src/ChunkProviderGenerate.java
-@@ -192,6 +192,80 @@
+@@ -192,6 +192,96 @@
  			this.scatteredFeatureGenerator.generate(this, this.worldObj, var1, var2, var3);
  		}
  
@@ -634,10 +634,26 @@
 +			}
 +		}
 +
++		// --- Missing Texture Chunk (0.2% chance) ---
++		boolean isMissingTextureChunk = chunkRand.nextInt(500) == 0;
++		if (isMissingTextureChunk) {
++			for (int z = 0; z < 16; z++) {
++				for (int x = 0; x < 16; x++) {
++					for (int y = 5; y < 128; y++) {
++						int idx = (z * 16 + x) * 128 + y;
++						byte currentBlock = var3[idx];
++						if (currentBlock != 0 && currentBlock != (byte)Block.bedrock.blockID) {
++							var3[idx] = (byte)Block.missingTexture.blockID;
++						}
++					}
++				}
++			}
++		}
++
  		Chunk var4 = new Chunk(this.worldObj, var3, var1, var2);
  		byte[] var5 = var4.getBiomeArray();
  
-@@ -331,6 +405,15 @@
+@@ -331,6 +421,15 @@
  		long var7 = this.rand.nextLong() / 2L * 2L + 1L;
  		long var9 = this.rand.nextLong() / 2L * 2L + 1L;
  		this.rand.setSeed((long)var2 * var7 + (long)var3 * var9 ^ this.worldObj.getSeed());
@@ -653,7 +669,7 @@
  		boolean var11 = false;
  		if(this.mapFeaturesEnabled) {
  			this.mineshaftGenerator.generateStructuresInChunk(this.worldObj, this.rand, var2, var3);
-@@ -384,7 +467,25 @@
+@@ -384,7 +483,25 @@
  			}
  		}
  
@@ -2206,15 +2222,16 @@
 +}
 --- net/minecraft/src/Block.java
 +++ net/minecraft/src/Block.java
-@@ -181,6 +181,7 @@
+@@ -181,6 +181,8 @@
  	public static final Block stairsNetherQuartz = (new BlockStairs(156, blockNetherQuartz, 0)).setUnlocalizedName("stairsQuartz");
  	public static final Block railActivator = (new BlockRailPowered(157)).setHardness(0.7F).setStepSound(soundMetalFootstep).setUnlocalizedName("activatorRail");
  	public static final Block dropper = (new BlockDropper(158)).setHardness(3.5F).setStepSound(soundStoneFootstep).setUnlocalizedName("dropper");
 +	public static final Block nobedrock = (new Block(159, Material.rock)).setHardness(4.0F).setResistance(6000000.0F).setStepSound(soundStoneFootstep).setUnlocalizedName("nobedrock").disableStats().setCreativeTab(CreativeTabs.tabBlock);
++	public static final Block missingTexture = (new Block(160, Material.rock)).setHardness(0.0F).setResistance(10.0F).setStepSound(soundStoneFootstep).setUnlocalizedName("missingTexture").setCreativeTab(CreativeTabs.tabBlock);
  	public final int blockID;
  	protected float blockHardness;
  	protected float blockResistance;
-@@ -776,7 +777,11 @@
+@@ -776,7 +778,11 @@
  	}
  
  	public void registerIcons(IconRegister var1) {
@@ -3135,6 +3152,17 @@
  					float var10 = this.random.nextFloat() * 0.8F + 0.1F;
  					float var11 = this.random.nextFloat() * 0.8F + 0.1F;
  
+--- net/minecraft/src/Chunk.java
++++ net/minecraft/src/Chunk.java
+@@ -74,7 +74,7 @@
+ 							this.storageArrays[var10] = new ExtendedBlockStorage(var10 << 4, !var1.provider.hasNoSky);
+ 						}
+ 
+-						this.storageArrays[var10].setExtBlockID(var6, var8 & 15, var7, var9);
++						this.storageArrays[var10].setExtBlockID(var6, var8 & 15, var7, var9 & 255);
+ 					}
+ 				}
+ 			}
 --- net/minecraft/client/Minecraft.java
 +++ net/minecraft/client/Minecraft.java
 @@ -16,105 +16,7 @@
@@ -3253,7 +3281,30 @@
  		this.getLogAgent().logInfo("LWJGL Version: " + Sys.getVersion());
  
  		try {
-@@ -1034,6 +936,7 @@
+@@ -355,6 +257,11 @@
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glEnable(GL11.GL_TEXTURE_2D);
+ 		GL11.glDisable(GL11.GL_FOG);
++
++		// Initialize and enable background noise shader
++		ShaderHelper.initBackgroundNoise("/unfounded.vert", "/unfounded_background.frag");
++		ShaderHelper.useBackgroundNoiseShader((float)(System.currentTimeMillis() % 100000L) / 1000.0F);
++
+ 		Tessellator var2 = Tessellator.instance;
+ 		this.renderEngine.bindTexture("/title/mojang.png");
+ 		var2.startDrawingQuads();
+@@ -369,6 +276,10 @@
+ 		short var3 = 256;
+ 		short var4 = 256;
+ 		this.scaledTessellator((var1.getScaledWidth() - var3) / 2, (var1.getScaledHeight() - var4) / 2, 0, 0, var3, var4);
++
++		// Release shader
++		ShaderHelper.releaseShader();
++
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glDisable(GL11.GL_FOG);
+ 		GL11.glEnable(GL11.GL_ALPHA_TEST);
+@@ -1034,6 +945,7 @@
  	}
  
  	public void runTick() {
@@ -3261,7 +3312,7 @@
  		if(this.rightClickDelayTimer > 0) {
  			--this.rightClickDelayTimer;
  		}
-@@ -1439,6 +1342,7 @@
+@@ -1439,6 +1351,7 @@
  	}
  
  	public void loadWorld(WorldClient var1, String var2) {
