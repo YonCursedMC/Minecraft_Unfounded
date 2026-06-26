@@ -85,6 +85,10 @@ https://elevenlabs.io/<br>
 - かずぎつね様
 ### ツール(AI)
 - Antigravity
+### 元ネタ
+- NINI（MOMO）
+Keisuke Aiso(LinkFactory)
+※ Keisuke Aisoさんに許可をいただきました。ありがとうございます。
 
 ありがとうございます！
 
@@ -103,6 +107,10 @@ https://elevenlabs.io/<br>
 - Kazugitune
 ### Tool
 - Antigravity
+### Original Source
+- NINI (MOMO)
+Keisuke Aiso (LinkFactory)
+* Permission was granted by Keisuke Aiso. Thank you very much.
 
 Thank you!<br>
 
