@@ -6,6 +6,7 @@ precision highp float;
 uniform vec2 u_resolution;   // Screen resolution (px)
 uniform float u_time;        // Time in seconds
 uniform sampler2D u_texture; // Currently bound texture (Terrain or Mob)
+uniform sampler2D u_lightmap; // Currently bound lightmap texture
 
 // Pseudo-random hash function
 float hash(vec2 p) {
@@ -168,6 +169,7 @@ void main() {
         }
     }
     
-    // Multiply by vertex color (retains lighting, daylight, AO, shadow)
-    gl_FragColor = texColor * gl_Color;
+    // Multiply by vertex color and lightmap color to retain lighting (day/night, torches, shadow)
+    vec4 lightmapColor = texture2D(u_lightmap, gl_TexCoord[1].st);
+    gl_FragColor = texColor * lightmapColor * gl_Color;
 }

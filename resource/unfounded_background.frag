@@ -18,97 +18,124 @@ float hash2(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
-// Horizontal scanline shift (row-based corruption)
-float rowShift(float y, float seed) {
-    float row = floor(y * 32.0);
-    float rowRand = hash2(vec2(row, seed));
-    if (rowRand > 0.80) {
-        return (rowRand - 0.80) * 0.4 * sign(rowRand - 0.90);
-    }
-    return 0.0;
-}
-
 void main() {
     vec2 uv = gl_TexCoord[0].st;
+    vec2 shiftedUV = uv;
 
-    // Time quantized into frames for sharp glitch steps
-    float slowSeed  = floor(u_time * 6.0);
-    float fastSeed  = floor(u_time * 18.0);
-    float ultraSeed = floor(u_time * 60.0);
+    // Time quantized into rapid, violent steps (15 updates per second)
+    float timeStep = floor(u_time * 15.0);
+    float glitchChance = hash(timeStep);
 
-    // --- Wavy base distortion (Mojangロゴのぐにゃぐにゃと合わせた雰囲気) ---
-    uv.x += sin(uv.y * 14.0 + u_time * 4.5) * 0.018;
-    uv.y += cos(uv.x * 10.0 + u_time * 3.5) * 0.012;
+    // Hashed time offsets to completely prevent linear scrolling/flowing of the grids.
+    // Adding random jumps (hashes) to grid coordinates rather than linear timeStep forces blocks to jump, not slide.
+    float tHash1 = hash(timeStep);
+    float tHash2 = hash(timeStep + 1.11);
+    vec2 tOffset = vec2(tHash1, tHash2) * 100.0;
 
-    // --- Horizontal row shift (datamosh / scanline corruption) ---
-    float shift = rowShift(uv.y, slowSeed) * 0.18;
-    // Occasional full-row violent shift
-    float violentRow = hash2(vec2(floor(uv.y * 48.0), fastSeed));
-    if (violentRow > 0.92) {
-        shift += (violentRow - 0.92) * 3.0 - 0.12;
+    // --- 1. Macro Screen Splits (Extreme screen breaks in screen-space) ---
+    // Breaks the screen in half or sections based on screen pixels so it does not flow
+    if (glitchChance > 0.50) {
+        float splitY = hash(timeStep + 99.1) * 1080.0;
+        if (gl_FragCoord.y > splitY) {
+            shiftedUV.x += (hash(timeStep + 88.2) - 0.5) * 0.45;
+        }
+        
+        float splitX = hash(timeStep + 77.3) * 1920.0;
+        if (gl_FragCoord.x > splitX) {
+            shiftedUV.y += (hash(timeStep + 66.4) - 0.5) * 0.45;
+        }
     }
 
-    vec2 shiftedUV = vec2(uv.x + shift, uv.y);
+    // --- 2. Violent Screen Jitter / High-freq vibration ---
+    if (glitchChance > 0.65) {
+        float shakeAmt = 0.04 + 0.06 * hash(timeStep + 0.88);
+        shiftedUV.x += (hash(timeStep + 0.12) - 0.5) * shakeAmt;
+        shiftedUV.y += (hash(timeStep + 0.45) - 0.5) * shakeAmt;
+    }
 
-    // --- RGB chromatic aberration split ---
-    float aberr = 0.018 + u_event9Active * 0.06;
-    float r = texture2D(u_texture, shiftedUV + vec2( aberr, 0.0)).r;
-    float g = texture2D(u_texture, shiftedUV                    ).g;
-    float b = texture2D(u_texture, shiftedUV - vec2( aberr, 0.0)).b;
-    float a = texture2D(u_texture, shiftedUV                    ).a;
+    // --- 3. Heavy Block Datamoshing (Screen-space grid displacement) ---
+    // Using a screen-space grid of 80x80 pixels.
+    vec2 blockGrid = floor(gl_FragCoord.xy / 80.0);
+    float blockDisplaceSeed = hash2(blockGrid + tOffset);
+    
+    if (glitchChance > 0.30 && blockDisplaceSeed > 0.65) {
+        vec2 offset = vec2(
+            hash2(blockGrid + tOffset + vec2(1.23, 4.56)) - 0.5,
+            hash2(blockGrid + tOffset + vec2(7.89, 0.12)) - 0.5
+        );
+        // Extremely massive shift amount (up to 35% texture shift)
+        shiftedUV += offset * (0.15 + 0.35 * hash2(blockGrid + tOffset + vec2(5.55)));
+    }
+
+    // --- 4. Dynamic Chromatic Aberration (Extreme RGB splitting) ---
+    float aberr = 0.0;
+    if (glitchChance > 0.4) {
+        aberr = 0.015 + 0.045 * hash(timeStep + 9.87) + u_event9Active * 0.08;
+    }
+
+    // Even more extreme CA for certain blocks on the screen
+    if (hash2(blockGrid + tOffset + vec2(9.99)) > 0.75) {
+        aberr *= 3.5;
+    }
+
+    float r = texture2D(u_texture, shiftedUV + vec2(aberr, 0.0)).r;
+    float g = texture2D(u_texture, shiftedUV).g;
+    float b = texture2D(u_texture, shiftedUV - vec2(aberr, 0.0)).b;
+    float a = texture2D(u_texture, shiftedUV).a;
 
     vec3 col = vec3(r, g, b);
 
     // Darken overall (ominous feel)
     col *= 0.55;
 
-    // --- Blocky pixel corruption (glitch blocks) ---
-    float blockSz = 6.0;
-    vec2 blockPos = floor(gl_FragCoord.xy / blockSz);
-    float blockRand = hash2(blockPos + slowSeed);
-    if (blockRand > 0.88) {
-        float br2 = hash2(blockPos + slowSeed + 7.0);
-        vec3 glitchCol;
-        if      (br2 < 0.33) glitchCol = vec3(0.0, 1.0, 1.0);   // cyan
-        else if (br2 < 0.66) glitchCol = vec3(1.0, 0.0, 0.8);   // magenta
-        else                  glitchCol = vec3(0.2, 1.0, 0.2);   // green
-        float mix_amt = clamp((blockRand - 0.88) * 8.0, 0.0, 1.0);
-        col = mix(col, glitchCol, mix_amt * 0.7);
+    // --- 5. Block-based Digital Corruption & Pure Static Blocks ---
+    vec2 colorBlockId = floor(gl_FragCoord.xy / 24.0);
+    float colorBlockSeed = hash2(colorBlockId + tOffset + vec2(12.34));
+    
+    if (glitchChance > 0.45 && colorBlockSeed > 0.75) {
+        float type = hash2(colorBlockId + tOffset + vec2(56.78));
+        if (type < 0.25) {
+            // Full color inversion
+            col = vec3(1.0) - col;
+        } else if (type < 0.50) {
+            // Channel swapping
+            col = col.gbr;
+        } else if (type < 0.75) {
+            // Neon pink/purple corruption
+            col = mix(col, vec3(0.9, 0.0, 0.9), 0.85);
+        } else {
+            // Replace block completely with analog white noise/static
+            float staticNoise = rand(gl_FragCoord.xy + tOffset);
+            col = vec3(staticNoise);
+        }
     }
 
-    // --- Full scanline color bars (solid corrupted rows) ---
-    float lineY = floor(uv.y * 64.0);
-    float lineRand = hash2(vec2(lineY, fastSeed));
-    if (lineRand > 0.95) {
-        float ltype = hash2(vec2(lineY + 1.0, fastSeed));
-        vec3 barCol;
-        if      (ltype < 0.25) barCol = vec3(1.0, 0.0, 0.0);   // red
-        else if (ltype < 0.50) barCol = vec3(0.0, 0.0, 0.0);   // black
-        else if (ltype < 0.75) barCol = vec3(0.0, 1.0, 1.0);   // cyan
-        else                    barCol = vec3(0.8, 0.0, 1.0);   // purple
-        col = mix(col, barCol, 0.85);
-    }
+    // --- 6. High-frequency flickering noise overlay ---
+    float noiseVal = rand(gl_FragCoord.xy * 0.8 + tOffset);
+    col += (noiseVal - 0.5) * 0.14;
 
-    // --- High-freq digital noise overlay ---
-    float noiseVal = rand(gl_FragCoord.xy * 0.5 + ultraSeed);
-    col += (noiseVal - 0.5) * 0.08;
-
-    // --- Occasional full-screen flash (brief white/color burst) ---
-    float flashRand = hash(fastSeed * 0.37);
-    if (flashRand > 0.97) {
-        float flashStrength = (flashRand - 0.97) * 15.0;
-        vec3 flashCol = vec3(
-            hash(fastSeed),
-            hash(fastSeed + 1.0),
-            hash(fastSeed + 2.0)
-        );
-        col = mix(col, flashCol, clamp(flashStrength * 0.4, 0.0, 0.35));
+    // --- 7. Rapid Full-screen Burst Flashes ---
+    float burstChance = hash(timeStep * 7.12);
+    if (burstChance > 0.90) {
+        float burstType = hash(timeStep + 5.5);
+        vec3 burstCol;
+        if (burstType < 0.33) {
+            // Pure white burst
+            burstCol = vec3(1.0);
+        } else if (burstType < 0.66) {
+            // Solid red warning burst
+            burstCol = vec3(0.8, 0.0, 0.0);
+        } else {
+            // Inverted full screen flash
+            burstCol = vec3(1.0) - col;
+        }
+        col = mix(col, burstCol, 0.45);
     }
 
     // event9 amplification
     if (u_event9Active > 0.0) {
         float ex = u_event9Active;
-        col = mix(col, vec3(rand(gl_FragCoord.xy + ultraSeed)), ex * 0.5);
+        col = mix(col, vec3(rand(gl_FragCoord.xy + tOffset * 2.0)), ex * 0.7);
     }
 
     col = clamp(col, 0.0, 1.0);
