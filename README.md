@@ -34,7 +34,7 @@
 https://www.azul.com/downloads/?version=java-8-lts&os=windows&architecture=x86-64-bit&package=jdk#zulu
 
 1. クライアントのzipファイルをダウンロードします。<br>
-https://github.com/YonCursedMC/Minecraft_Unfounded/releases<br>
+https://github.com/YonCursedMC/Minecraft_Unfounded/releases/latest<br>
 こちらの一番上の```Unfounded.zip```<br>
 
 2. PrismLauncher<br>
@@ -56,7 +56,7 @@ Required: Java8 (zulu recommended)<br>
 https://www.azul.com/downloads/?version=java-8-lts&os=windows&architecture=x86-64-bit&package=jdk#zulu
 
 1. Download the client zip file.<br>
-https://github.com/YonCursedMC/Minecraft_Unfounded/releases<br>
+https://github.com/YonCursedMC/Minecraft_Unfounded/releases/latest<br>
 The top one here is ``Unfounded.zip```<br>
 
 2. Install PrismLauncher<br>
