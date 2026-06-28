@@ -32,6 +32,17 @@
 +		return 222;
 +	}
 +}
+--- net/minecraft/src/DedicatedServer.java
++++ net/minecraft/src/DedicatedServer.java
+@@ -30,7 +30,7 @@
+ 		DedicatedServerCommandThread var1 = new DedicatedServerCommandThread(this);
+ 		var1.setDaemon(true);
+ 		var1.start();
+-		this.getLogAgent().logInfo("Starting minecraft server version 1.5.2");
++		this.getLogAgent().logInfo("Starting minecraft server version Unfounded r2");
+ 		if(Runtime.getRuntime().maxMemory() / 1024L / 1024L < 512L) {
+ 			this.getLogAgent().logWarning("To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"");
+ 		}
 --- /dev/null
 +++ net/minecraft/src/WorldGenLongFix.java
 @@ -1,0 +1,71 @@
@@ -106,6 +117,17 @@
 +		return true;
 +	}
 +}
+--- net/minecraft/src/CallableMinecraftVersion.java
++++ net/minecraft/src/CallableMinecraftVersion.java
+@@ -10,7 +10,7 @@
+ 	}
+ 
+ 	public String minecraftVersion() {
+-		return "1.5.2";
++		return "Unfounded";
+ 	}
+ 
+ 	public Object call() {
 --- net/minecraft/src/ChunkProviderGenerate.java
 +++ net/minecraft/src/ChunkProviderGenerate.java
 @@ -192,6 +192,96 @@
@@ -587,6 +609,17 @@
  	public final int blockID;
  	protected float blockHardness;
  	protected float blockResistance;
+--- net/minecraft/src/PlayerUsageSnooper.java
++++ net/minecraft/src/PlayerUsageSnooper.java
+@@ -47,7 +47,7 @@
+ 		this.addData("os_version", System.getProperty("os.version"));
+ 		this.addData("os_architecture", System.getProperty("os.arch"));
+ 		this.addData("java_version", System.getProperty("java.version"));
+-		this.addData("version", "1.5.2");
++		this.addData("version", "Unfounded");
+ 		this.playerStatsCollector.addServerTypeToSnooper(this);
+ 	}
+ 
 --- /dev/null
 +++ net/minecraft/src/EntityBinary444.java
 @@ -1,0 +1,22 @@
@@ -612,6 +645,17 @@
 +		return 60;
 +	}
 +}
+--- net/minecraft/server/MinecraftServer.java
++++ net/minecraft/server/MinecraftServer.java
+@@ -601,7 +601,7 @@
+ 	}
+ 
+ 	public String getMinecraftVersion() {
+-		return "1.5.2";
++		return "Unfounded";
+ 	}
+ 
+ 	public int getCurrentPlayerCount() {
 --- /dev/null
 +++ net/minecraft/src/EntityNoise.java
 @@ -1,0 +1,66 @@
@@ -888,6 +932,17 @@
 +		super(id);
 +	}
 +}
+--- net/minecraft/src/BanList.java
++++ net/minecraft/src/BanList.java
+@@ -106,7 +106,7 @@
+ 		try {
+ 			PrintWriter var2 = new PrintWriter(new FileWriter(this.fileName, false));
+ 			if(var1) {
+-				var2.println("# Updated " + (new SimpleDateFormat()).format(new Date()) + " by Minecraft " + "1.5.2");
++				var2.println("# Updated " + (new SimpleDateFormat()).format(new Date()) + " by Minecraft " + "Unfounded");
+ 				var2.println("# victim name | ban date | banned by | banned until | reason");
+ 				var2.println();
+ 			}
 --- net/minecraft/src/Chunk.java
 +++ net/minecraft/src/Chunk.java
 @@ -74,7 +74,7 @@

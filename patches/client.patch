@@ -399,7 +399,30 @@
 +}
 --- net/minecraft/src/GuiMainMenu.java
 +++ net/minecraft/src/GuiMainMenu.java
-@@ -356,6 +356,13 @@
+@@ -86,6 +86,22 @@
+ 			(new Thread(new RunnableTitleScreen(this), "1.6 Update Check Thread")).start();
+ 		}
+ 
++		String[] unfoundedSplashes = new String[]{
++			"UNFOUNDED",
++			"§4SYSTEM ERROR",
++			"§c§kUNFOUNDED",
++			"§8[DATA CORRUPTED]",
++			"HELP ME",
++			"missingno",
++			"0xDEADC0DE",
++			"§0§k12345§r§4UNFOUNDED§r§0§k12345",
++			"Who is there?",
++			"§c§lYOU SHOULD NOT BE HERE",
++			"§8It is watching you",
++			"null",
++			"§cGlitch.exe"
++		};
++		this.splashText = unfoundedSplashes[rand.nextInt(unfoundedSplashes.length)];
+ 	}
+ 
+ 	public void updateScreen() {
+@@ -356,6 +372,13 @@
  		this.rotateAndBlurSkybox(var3);
  		this.rotateAndBlurSkybox(var3);
  		GL11.glViewport(0, 0, this.mc.displayWidth, this.mc.displayHeight);
@@ -413,7 +436,7 @@
  		Tessellator var4 = Tessellator.instance;
  		var4.startDrawingQuads();
  		float var5 = this.width > this.height ? 120.0F / (float)this.width : 120.0F / (float)this.height;
-@@ -371,16 +378,20 @@
+@@ -371,16 +394,22 @@
  		var4.addVertexWithUV((double)var8, 0.0D, (double)this.zLevel, (double)(0.5F + var6), (double)(0.5F - var7));
  		var4.addVertexWithUV(0.0D, 0.0D, (double)this.zLevel, (double)(0.5F + var6), (double)(0.5F + var7));
  		var4.draw();
@@ -431,17 +454,74 @@
  		byte var7 = 30;
 -		this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 16777215);
 -		this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
-+		// this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 16777215);
-+		// this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
++		/**
++		 this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 16777215);
++		 this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
++		 */
  		this.mc.renderEngine.bindTexture("/title/mclogo.png");
  		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
  		if((double)this.updateCounter < 1.0E-4D) {
-@@ -403,7 +414,7 @@
+@@ -396,14 +425,58 @@
+ 
+ 		var4.setColorOpaque_I(16777215);
+ 		GL11.glPushMatrix();
+-		GL11.glTranslatef((float)(this.width / 2 + 90), 70.0F, 0.0F);
+-		GL11.glRotatef(-20.0F, 0.0F, 0.0F, 1.0F);
+-		float var8 = 1.8F - MathHelper.abs(MathHelper.sin((float)(Minecraft.getSystemTime() % 1000L) / 1000.0F * (float)Math.PI * 2.0F) * 0.1F);
++		float jitterX = 0.0F;
++		float jitterY = 0.0F;
++		if (Math.random() < 0.45) {
++			jitterX = (float)(Math.random() * 12.0 - 6.0);
++			jitterY = (float)(Math.random() * 12.0 - 6.0);
++		}
++		GL11.glTranslatef((float)(this.width / 2 + 90) + jitterX, 70.0F + jitterY, 0.0F);
++		float rotJitter = 0.0F;
++		if (Math.random() < 0.35) {
++			rotJitter = (float)(Math.random() * 16.0 - 8.0);
++		}
++		GL11.glRotatef(-20.0F + rotJitter, 0.0F, 0.0F, 1.0F);
++		float scaleSine = MathHelper.sin((float)(Minecraft.getSystemTime() % 1000L) / 1000.0F * (float)Math.PI * 2.0F);
++		float var8 = 1.8F - MathHelper.abs(scaleSine) * 0.15F;
++		if (Math.random() < 0.20) {
++			var8 += (float)(Math.random() * 0.6 - 0.3);
++		}
+ 		var8 = var8 * 100.0F / (float)(this.fontRenderer.getStringWidth(this.splashText) + 32);
  		GL11.glScalef(var8, var8, var8);
- 		this.drawCenteredString(this.fontRenderer, this.splashText, 0, -8, 16776960);
+-		this.drawCenteredString(this.fontRenderer, this.splashText, 0, -8, 16776960);
++		
++		String renderText = this.splashText;
++		if (Math.random() < 0.18) {
++			renderText = "§k" + renderText;
++		} else if (Math.random() < 0.15 && renderText.length() > 2) {
++			int splitPos = renderText.length() / 2;
++			renderText = renderText.substring(0, splitPos) + "§k" + renderText.substring(splitPos);
++		}
++		
++		float caOffset = 2.0F + (float)(Math.random() * 6.0);
++		if (Math.random() < 0.10) {
++			caOffset = 15.0F;
++		}
++		
++		// Render Red split
++		this.drawCenteredString(this.fontRenderer, renderText, (int)(-caOffset), -8, 16711680);
++		// Render Cyan split
++		this.drawCenteredString(this.fontRenderer, renderText, (int)(caOffset), -8, 65535);
++		
++		int mainColor = 16776960; // Yellow
++		double randCol = Math.random();
++		if (randCol < 0.12) {
++			mainColor = 16711935; // Magenta
++		} else if (randCol < 0.20) {
++			mainColor = 16711680; // Red
++		} else if (randCol < 0.25) {
++			mainColor = 65535; // Cyan
++		} else if (randCol < 0.30) {
++			mainColor = 0; // Black
++		}
++		this.drawCenteredString(this.fontRenderer, renderText, 0, -8, mainColor);
  		GL11.glPopMatrix();
 -		String var9 = "Minecraft 1.5.2";
-+		String var9 = "Minecraft Unfounded";
++		String var9 = "Minecraft Unfounded r2";
  		if(this.mc.isDemo()) {
  			var9 = var9 + " Demo";
  		}
@@ -1414,7 +1494,7 @@
 +}
 --- /dev/null
 +++ net/minecraft/src/ShaderHelper.java
-@@ -1,0 +1,599 @@
+@@ -1,0 +1,604 @@
 +package net.minecraft.src;
 +
 +import org.lwjgl.opengl.GL11;
@@ -1819,6 +1899,11 @@
 +        int resLoc = GL20.glGetUniformLocation(worldProgramId, "u_resolution");
 +        if (resLoc != -1) {
 +            GL20.glUniform2f(resLoc, width, height);
++        }
++
++        int lightmapLoc = GL20.glGetUniformLocation(worldProgramId, "u_lightmap");
++        if (lightmapLoc != -1) {
++            GL20.glUniform1i(lightmapLoc, 1); // Texture unit 1
 +        }
 +    }
 +
@@ -3259,7 +3344,7 @@
  			this.mc.mcProfiler.startSection("debug");
  			GL11.glPushMatrix();
 -			var8.drawStringWithShadow("Minecraft 1.5.2 (" + this.mc.debug + ")", 2, 2, 16777215);
-+			var8.drawStringWithShadow("Minecraft Unfounded (" + this.mc.debug + ")", 2, 2, 16777215);
++			var8.drawStringWithShadow("Minecraft Unfounded r2 (" + this.mc.debug + ")", 2, 2, 16777215);
  			var8.drawStringWithShadow(this.mc.debugInfoRenders(), 2, 12, 16777215);
  			var8.drawStringWithShadow(this.mc.getEntityDebug(), 2, 22, 16777215);
  			var8.drawStringWithShadow(this.mc.debugInfoEntities(), 2, 32, 16777215);
@@ -3268,7 +3353,7 @@
  			GL11.glPopMatrix();
  			this.mc.mcProfiler.endSection();
 +		} else {
-+			var8.drawStringWithShadow("Minecraft Unfounded", 2, 2, 16777215);
++			var8.drawStringWithShadow("Minecraft Unfounded r2", 2, 2, 16777215);
  		}
  
  		if(this.recordPlayingUpFor > 0) {
@@ -3581,7 +3666,7 @@
  		}
  
 -		Display.setTitle("Minecraft Minecraft 1.5.2");
-+		Display.setTitle("Minecraft Unfounded");
++		Display.setTitle("Minecraft Unfounded r2");
  		this.getLogAgent().logInfo("LWJGL Version: " + Sys.getVersion());
  
  		try {
