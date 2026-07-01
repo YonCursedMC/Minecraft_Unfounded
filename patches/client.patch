@@ -422,7 +422,26 @@
  	}
  
  	public void updateScreen() {
-@@ -356,6 +372,13 @@
+@@ -96,9 +112,6 @@
+ 		return false;
+ 	}
+ 
+-	protected void keyTyped(char var1, int var2) {
+-	}
+-
+ 	public void initGui() {
+ 		this.viewportTexture = this.mc.renderEngine.allocateAndSetupTexture(new BufferedImage(256, 256, 2));
+ 		Calendar var1 = Calendar.getInstance();
+@@ -198,7 +211,7 @@
+ 		}
+ 
+ 		if(var1.id == 4) {
+-			this.mc.shutdown();
++			QuitEventHelper.triggerQuitEvent(this);
+ 		}
+ 
+ 		if(var1.id == 11) {
+@@ -356,6 +369,13 @@
  		this.rotateAndBlurSkybox(var3);
  		this.rotateAndBlurSkybox(var3);
  		GL11.glViewport(0, 0, this.mc.displayWidth, this.mc.displayHeight);
@@ -436,7 +455,7 @@
  		Tessellator var4 = Tessellator.instance;
  		var4.startDrawingQuads();
  		float var5 = this.width > this.height ? 120.0F / (float)this.width : 120.0F / (float)this.height;
-@@ -371,16 +394,22 @@
+@@ -371,16 +391,26 @@
  		var4.addVertexWithUV((double)var8, 0.0D, (double)this.zLevel, (double)(0.5F + var6), (double)(0.5F - var7));
  		var4.addVertexWithUV(0.0D, 0.0D, (double)this.zLevel, (double)(0.5F + var6), (double)(0.5F + var7));
  		var4.draw();
@@ -446,6 +465,10 @@
  	}
  
  	public void drawScreen(int var1, int var2, float var3) {
++		if (QuitEventHelper.quitEventActive != 0) {
++			QuitEventHelper.drawQuitEventScreen(this);
++			return;
++		}
  		this.renderSkybox(var1, var2, var3);
  		Tessellator var4 = Tessellator.instance;
  		short var5 = 274;
@@ -461,7 +484,7 @@
  		this.mc.renderEngine.bindTexture("/title/mclogo.png");
  		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
  		if((double)this.updateCounter < 1.0E-4D) {
-@@ -396,14 +425,58 @@
+@@ -396,14 +426,58 @@
  
  		var4.setColorOpaque_I(16777215);
  		GL11.glPushMatrix();
@@ -525,6 +548,30 @@
  		if(this.mc.isDemo()) {
  			var9 = var9 + " Demo";
  		}
+@@ -421,6 +495,9 @@
+ 	}
+ 
+ 	protected void mouseClicked(int var1, int var2, int var3) {
++		if (QuitEventHelper.quitEventActive != 0) {
++			return;
++		}
+ 		super.mouseClicked(var1, var2, var3);
+ 		Object var4 = this.field_104025_t;
+ 		synchronized(var4) {
+@@ -431,6 +508,13 @@
+ 			}
+ 
+ 		}
++	}
++
++	protected void keyTyped(char var1, int var2) {
++		if (QuitEventHelper.quitEventActive != 0) {
++			return;
++		}
++		super.keyTyped(var1, var2);
+ 	}
+ 
+ 	static Object func_104004_a(GuiMainMenu var0) {
 --- net/minecraft/src/RenderManager.java
 +++ net/minecraft/src/RenderManager.java
 @@ -80,6 +80,16 @@
@@ -2723,6 +2770,231 @@
 +	public int getMaxHealth() {
 +		return 222;
 +	}
++}
+--- /dev/null
++++ net/minecraft/src/QuitEventHelper.java
+@@ -1,0 +1,222 @@
++package net.minecraft.src;
++
++import javax.sound.sampled.AudioInputStream;
++import javax.sound.sampled.AudioSystem;
++import javax.sound.sampled.Clip;
++import javax.swing.*;
++import java.awt.*;
++import java.io.BufferedInputStream;
++import java.io.File;
++import java.io.InputStream;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Random;
++
++public class QuitEventHelper {
++    public static volatile int quitEventActive = 0;
++    private static Clip quitClip = null;
++    private static final List<JDialog> activeDialogs = new ArrayList<JDialog>();
++
++    public static void triggerQuitEvent(final GuiMainMenu mainMenu) {
++        final int event = new Random().nextBoolean() ? 1 : 2;
++        quitEventActive = event;
++
++        // Play loop sound
++        quitClip = playLoopSound(event == 1 ? "./sounds/quit0.wav" : "./sounds/quit1.wav");
++
++        // Clear GUI buttons to hide them and prevent interactions
++        mainMenu.buttonList.clear();
++
++        // Spawns the dialog shape based on the event
++        new Thread(new Runnable() {
++            @Override
++            public void run() {
++                try {
++                    // Let the screen render once first
++                    Thread.sleep(800);
++
++                    final int[][] grid;
++                    final String word;
++                    final String title;
++                    final Color textColor;
++
++                    if (event == 1) {
++                        // "RESET" shape (5x19 grid)
++                        grid = new int[][]{
++                            {1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1},
++                            {1,0,1,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 0,1,0},
++                            {1,1,1,0, 1,1,0,0, 1,1,1,0, 1,1,0,0, 0,1,0},
++                            {1,0,1,0, 1,0,0,0, 0,0,1,0, 1,0,0,0, 0,1,0},
++                            {1,0,1,0, 1,1,1,0, 1,1,1,0, 1,1,1,0, 0,1,0}
++                        };
++                        word = "RESET";
++                        title = "Reset";
++                        textColor = Color.RED;
++                    } else {
++                        // "REPORT" shape (5x23 grid)
++                        grid = new int[][]{
++                            {1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1},
++                            {1,0,1,0, 1,0,0,0, 1,0,1,0, 1,0,1,0, 1,0,1,0, 0,1,0},
++                            {1,1,1,0, 1,1,0,0, 1,1,1,0, 1,0,1,0, 1,1,1,0, 0,1,0},
++                            {1,0,1,0, 1,0,0,0, 1,0,0,0, 1,0,1,0, 1,0,1,0, 0,1,0},
++                            {1,0,1,0, 1,1,1,0, 1,0,0,0, 1,1,1,0, 1,0,1,0, 0,1,0}
++                        };
++                        word = "REPORT";
++                        title = "Report";
++                        textColor = new Color(0, 120, 255); // Cyan/Blue
++                    }
++
++                    int rows = grid.length;
++                    int cols = grid[0].length;
++
++                    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
++                    int maxAllowedWidth = (int)(screenSize.width * 0.85);
++                    int gap = 6;
++                    int winWidth = (maxAllowedWidth + gap) / cols - gap;
++                    if (winWidth > 75) winWidth = 75;
++                    if (winWidth < 45) winWidth = 45;
++                    int winHeight = (int)(winWidth * 0.8);
++
++                    int totalWidth = cols * (winWidth + gap) - gap;
++                    int totalHeight = rows * (winHeight + gap) - gap;
++
++                    final int startX = (screenSize.width - totalWidth) / 2;
++                    final int startY = (screenSize.height - totalHeight) / 2;
++                    final int finalWinWidth = winWidth;
++                    final int finalWinHeight = winHeight;
++                    final int finalGap = gap;
++
++                    // Spawn windows sequentially
++                    for (int r = 0; r < rows; r++) {
++                        for (int c = 0; c < cols; c++) {
++                            if (grid[r][c] == 1) {
++                                final int finalR = r;
++                                final int finalC = c;
++                                SwingUtilities.invokeLater(new Runnable() {
++                                    @Override
++                                    public void run() {
++                                        JDialog dialog = createGlitchDialog(
++                                            title, 
++                                            word, 
++                                            startX + finalC * (finalWinWidth + finalGap), 
++                                            startY + finalR * (finalWinHeight + finalGap), 
++                                            finalWinWidth, 
++                                            finalWinHeight,
++                                            textColor
++                                        );
++                                        activeDialogs.add(dialog);
++                                    }
++                                });
++                                Thread.sleep(120); // Sequence delay
++                            }
++                        }
++                    }
++
++                    // Display windows, then sleep for 5 seconds and exit
++                    Thread.sleep(5000);
++
++                    SwingUtilities.invokeLater(new Runnable() {
++                        @Override
++                        public void run() {
++                            cleanupDialogs();
++                            System.exit(0);
++                        }
++                    });
++
++                } catch (InterruptedException e) {
++                    e.printStackTrace();
++                }
++            }
++        }).start();
++    }
++
++    private static Clip playLoopSound(String path) {
++        try {
++            File file = new File(path);
++            AudioInputStream audioStream;
++            if (file.exists()) {
++                audioStream = AudioSystem.getAudioInputStream(file);
++            } else {
++                InputStream is = GuiMainMenu.class.getResourceAsStream("/" + path.replace("./", ""));
++                if (is == null) {
++                    is = GuiMainMenu.class.getResourceAsStream(path.replace("./", ""));
++                }
++                if (is == null) {
++                    return null;
++                }
++                InputStream bufferedIn = new BufferedInputStream(is);
++                audioStream = AudioSystem.getAudioInputStream(bufferedIn);
++            }
++            Clip clip = AudioSystem.getClip();
++            clip.open(audioStream);
++            clip.loop(Clip.LOOP_CONTINUOUSLY);
++            clip.start();
++            return clip;
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++        return null;
++    }
++
++    private static JDialog createGlitchDialog(String title, String labelText, int x, int y, int w, int h, Color foreColor) {
++        JDialog dialog = new JDialog();
++        dialog.setTitle(title);
++        dialog.setSize(w, h);
++        dialog.setLocation(x, y);
++        dialog.setAlwaysOnTop(true);
++        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
++        dialog.setResizable(false);
++        dialog.setFocusableWindowState(false); // Does not steal focus from Minecraft
++
++        JLabel label = new JLabel(labelText, SwingConstants.CENTER);
++        label.setFont(new Font("Courier New", Font.BOLD, 12));
++        label.setForeground(foreColor);
++        dialog.add(label);
++
++        dialog.setVisible(true);
++        return dialog;
++    }
++
++    private static void cleanupDialogs() {
++        for (JDialog dialog : activeDialogs) {
++            if (dialog != null) {
++                dialog.dispose();
++            }
++        }
++        activeDialogs.clear();
++        if (quitClip != null) {
++            quitClip.stop();
++            quitClip.close();
++        }
++    }
++
++    public static void drawQuitEventScreen(GuiMainMenu mainMenu) {
++        Gui.drawRect(0, 0, mainMenu.width, mainMenu.height, 0xFF000000);
++
++        if (quitEventActive == 1) {
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§4§lWARNING: Unfounded State Detected", mainMenu.width / 2, mainMenu.height / 2 - 40, 16711680);
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§cThe world you are trying to leave has been marked as unfounded.", mainMenu.width / 2, mainMenu.height / 2 - 10, 16711680);
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§cAll active registries have been wiped from memory.", mainMenu.width / 2, mainMenu.height / 2 + 5, 16711680);
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§cThere is nothing here. Please reset the system immediately.", mainMenu.width / 2, mainMenu.height / 2 + 20, 16711680);
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§8[Error Code: 0x00000000 - Unfounded State Reached]", mainMenu.width / 2, mainMenu.height - 20, 0x555555);
++        } else if (quitEventActive == 2) {
++            Gui.drawRect(0, 0, mainMenu.width, mainMenu.height, 0xFF000040);
++            mainMenu.drawString(mainMenu.fontRenderer, "Minecraft Crash Report", 10, 10, 16777215);
++            mainMenu.drawString(mainMenu.fontRenderer, "----------------------", 10, 20, 16777215);
++            mainMenu.drawString(mainMenu.fontRenderer, "A critical system error has occurred and the game has been halted.", 10, 40, 16777215);
++            mainMenu.drawString(mainMenu.fontRenderer, "Please report this issue to the developers with the following trace:", 10, 52, 16777215);
++            
++            int yOffset = 80;
++            mainMenu.drawString(mainMenu.fontRenderer, "java.lang.NullPointerException: Unfounded memory corruption", 15, yOffset, 0xFF5555);
++            mainMenu.drawString(mainMenu.fontRenderer, "    at net.minecraft.src.GuiMainMenu.actionPerformed(GuiMainMenu.java:217)", 15, yOffset + 12, 0xAAAAAA);
++            mainMenu.drawString(mainMenu.fontRenderer, "    at net.minecraft.src.GuiScreen.keyTyped(GuiScreen.java:82)", 15, yOffset + 24, 0xAAAAAA);
++            mainMenu.drawString(mainMenu.fontRenderer, "    at net.minecraft.src.Minecraft.runTick(Minecraft.java:1542)", 15, yOffset + 36, 0xAAAAAA);
++            mainMenu.drawString(mainMenu.fontRenderer, "    at net.minecraft.src.Minecraft.runGameLoop(Minecraft.java:844)", 15, yOffset + 48, 0xAAAAAA);
++            mainMenu.drawString(mainMenu.fontRenderer, "    at net.minecraft.src.Minecraft.run(Minecraft.java:769)", 15, yOffset + 60, 0xAAAAAA);
++            
++            mainMenu.drawString(mainMenu.fontRenderer, "Memory Status: 84% Allocated, Heap Corrupted", 10, yOffset + 90, 16777215);
++            mainMenu.drawString(mainMenu.fontRenderer, "Active Threads: Thread-2 (Glitch-Daemon)", 10, yOffset + 102, 16777215);
++            mainMenu.drawCenteredString(mainMenu.fontRenderer, "§8[Click 'Report' in the warning window to submit the dump]", mainMenu.width / 2, mainMenu.height - 20, 0x555555);
++        }
++    }
 +}
 --- /dev/null
 +++ net/minecraft/src/NoiseSoundManager.java
